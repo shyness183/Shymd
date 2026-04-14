@@ -1,0 +1,28 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+src-tauri/target
+
+# Runtime folders
+cache/
+download/
+
+# Binaries
+*.exe
+*.msi
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode
+.idea
+*.sw?
+.DS_Store
+
+# Local env
+*.local

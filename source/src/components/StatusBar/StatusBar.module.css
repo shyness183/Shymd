@@ -1,0 +1,34 @@
+.statusbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--statusbar-height);
+  padding: 0 12px;
+  background: var(--color-menu-bg);
+  border-top: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.left,
+.right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.item {
+  white-space: nowrap;
+}
+
+.mode {
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--color-hover);
+  font-size: 11px;
+}

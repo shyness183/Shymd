@@ -1,0 +1,36 @@
+# Binaries (release in GitHub Releases, not in repo)
+*.exe
+*.msi
+
+# Dependencies
+source/node_modules/
+
+# Build output
+source/dist/
+source/src-tauri/target/
+
+# Vite cache
+.vite/
+source/.vite/
+
+# Runtime folders
+cache/
+download/
+files/
+
+# Claude Code
+.claude/
+source/.claude/
+
+# Editor
+.vscode/
+.idea/
+*.sw?
+.DS_Store
+
+# Local env
+*.local
+
+# Logs
+*.log
+npm-debug.log*

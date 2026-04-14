@@ -1,0 +1,103 @@
+.panel {
+  position: fixed;
+  top: calc(var(--menubar-height) + 10px);
+  right: 18px;
+  z-index: 300;
+  background: var(--color-sidebar-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  min-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.input {
+  flex: 1;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 13px;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--color-accent);
+}
+
+.count {
+  min-width: 44px;
+  text-align: center;
+  color: var(--color-text-secondary, var(--color-text));
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.iconBtn {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconBtn:hover {
+  background: var(--color-hover);
+}
+
+.iconBtn.active {
+  background: var(--color-hover);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.textBtn {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.textBtn:hover:not(:disabled) {
+  background: var(--color-hover);
+}
+
+.textBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* CSS Custom Highlight API styling */
+:global(::highlight(shymd-find)) {
+  background: rgba(255, 200, 0, 0.4);
+  color: inherit;
+}
+
+:global(::highlight(shymd-find-current)) {
+  background: rgba(255, 140, 0, 0.65);
+  color: inherit;
+}

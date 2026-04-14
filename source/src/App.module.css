@@ -1,0 +1,24 @@
+.app {
+  display: grid;
+  grid-template-rows: var(--menubar-height) 1fr var(--statusbar-height);
+  grid-template-columns: var(--sidebar-col) 1fr;
+  height: 100%;
+  overflow: hidden;
+  transition: grid-template-columns 0.2s ease;
+  font-size: calc(16px * var(--zoom, 1));
+}
+
+.app.focusMode {
+  grid-template-rows: 1fr;
+  grid-template-columns: 1fr;
+}
+
+.menubar {
+  grid-column: 1 / -1;
+}
+
+.statusbar {
+  grid-column: 1 / -1;
+}
+
+

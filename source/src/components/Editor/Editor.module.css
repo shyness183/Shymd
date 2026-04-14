@@ -1,0 +1,114 @@
+.dropZone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dropZone > :first-child {
+  flex: 1;
+  min-height: 0;
+}
+
+.dropZoneActive::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px dashed var(--color-accent);
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 49;
+}
+
+.dropHint {
+  background: var(--color-panel, var(--color-bg));
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 10px;
+  padding: 14px 22px;
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.editor {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px 32px;
+  background: var(--color-bg);
+  transition: background 0.15s ease;
+}
+
+.content {
+  max-width: var(--editor-max-width);
+  margin: 0 auto;
+  outline: none;
+}
+
+.content ul,
+.content ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.content ul {
+  list-style: disc;
+}
+
+.content ol {
+  list-style: decimal;
+}
+
+.content li {
+  margin: 0.25em 0;
+}
+
+.content img {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 0.8em 0;
+}
+
+.content a {
+  color: var(--color-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* CodeMirror source mode container */
+.sourceContainer {
+  width: 100%;
+  height: 100%;
+}
+
+.sourceContainer :global(.cm-editor) {
+  height: 100%;
+}
+
+.sourceContainer :global(.cm-scroller) {
+  overflow: auto;
+  font-family: var(--font-code);
+}
+
+/* Wysiwyg (edit) mode — directly editable rendered HTML */
+.wysiwyg {
+  outline: none;
+  caret-color: var(--color-accent);
+  min-height: 100%;
+}
+
+.wysiwyg:focus {
+  outline: none;
+}

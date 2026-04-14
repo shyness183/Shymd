@@ -1,0 +1,48 @@
+/* highlight.js — adaptive theme using CSS variables */
+
+.hljs {
+  background: var(--color-code-bg) !important;
+  color: var(--color-text);
+  padding: 1em;
+  border-radius: 6px;
+  font-family: var(--font-code);
+  font-size: 0.9em;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+/* Light theme tokens */
+[data-theme="light"] .hljs-keyword,
+[data-theme="light"] .hljs-selector-tag { color: #D4775C; }
+[data-theme="light"] .hljs-string,
+[data-theme="light"] .hljs-addition { color: #6A8759; }
+[data-theme="light"] .hljs-number,
+[data-theme="light"] .hljs-literal { color: #B5695C; }
+[data-theme="light"] .hljs-comment,
+[data-theme="light"] .hljs-quote { color: #999; font-style: italic; }
+[data-theme="light"] .hljs-title,
+[data-theme="light"] .hljs-section { color: #4A7FB5; font-weight: 600; }
+[data-theme="light"] .hljs-built_in,
+[data-theme="light"] .hljs-type { color: #B07D48; }
+[data-theme="light"] .hljs-attr,
+[data-theme="light"] .hljs-variable { color: #9876AA; }
+[data-theme="light"] .hljs-meta { color: #888; }
+[data-theme="light"] .hljs-deletion { color: #D4775C; background: rgba(212,119,92,0.1); }
+
+/* Dark theme tokens */
+[data-theme="dark"] .hljs-keyword,
+[data-theme="dark"] .hljs-selector-tag { color: #E8956A; }
+[data-theme="dark"] .hljs-string,
+[data-theme="dark"] .hljs-addition { color: #98C379; }
+[data-theme="dark"] .hljs-number,
+[data-theme="dark"] .hljs-literal { color: #D19A66; }
+[data-theme="dark"] .hljs-comment,
+[data-theme="dark"] .hljs-quote { color: #666; font-style: italic; }
+[data-theme="dark"] .hljs-title,
+[data-theme="dark"] .hljs-section { color: #6BA3D6; font-weight: 600; }
+[data-theme="dark"] .hljs-built_in,
+[data-theme="dark"] .hljs-type { color: #D19A66; }
+[data-theme="dark"] .hljs-attr,
+[data-theme="dark"] .hljs-variable { color: #C678DD; }
+[data-theme="dark"] .hljs-meta { color: #777; }
+[data-theme="dark"] .hljs-deletion { color: #E8956A; background: rgba(232,149,106,0.1); }

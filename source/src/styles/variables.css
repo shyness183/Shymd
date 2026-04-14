@@ -1,0 +1,91 @@
+/* ===== Light Theme (default) — PDD 9.1 亮色经典 ===== */
+[data-theme="light"] {
+  --color-bg: #FAFAF9;
+  --color-sidebar-bg: #F0EFED;
+  --color-menu-bg: #F5F4F2;
+  --color-border: #E5E5E5;
+  --color-text: #2C2C2C;
+  --color-heading: #1A1A1A;
+  --color-accent: #D4775C;
+  --color-link: #4A7FB5;
+  --color-code-bg: #F4F1EE;
+  --color-selection: rgba(212, 119, 92, 0.15);
+  --color-hover: rgba(0, 0, 0, 0.04);
+  --color-active: rgba(0, 0, 0, 0.07);
+  --color-text-secondary: #6B6B6B;
+  --color-scrollbar: #C8C5C0;
+  --color-scrollbar-hover: #A8A5A0;
+}
+
+/* ===== Morandi Theme — 低饱和度莫兰迪配色 ===== */
+[data-theme="morandi"] {
+  --color-bg: #EDE7DD;
+  --color-sidebar-bg: #DFD8CB;
+  --color-menu-bg: #E5DFD3;
+  --color-border: #C8BFAE;
+  --color-text: #4A433A;
+  --color-heading: #36302A;
+  --color-accent: #A38B7A;
+  --color-link: #7E8D9C;
+  --color-code-bg: #D9D1C1;
+  --color-selection: rgba(163, 139, 122, 0.22);
+  --color-hover: rgba(0, 0, 0, 0.04);
+  --color-active: rgba(0, 0, 0, 0.08);
+  --color-text-secondary: #7A7064;
+  --color-scrollbar: #B7AE9E;
+  --color-scrollbar-hover: #8E8576;
+}
+
+/* ===== Eye-Care Green — 浅绿护眼主题 ===== */
+[data-theme="eye-care"] {
+  --color-bg: #C7EDCC;
+  --color-sidebar-bg: #B5DEBA;
+  --color-menu-bg: #BEE5C3;
+  --color-border: #A3CCA8;
+  --color-text: #2F3D32;
+  --color-heading: #1E2A20;
+  --color-accent: #4E7F52;
+  --color-link: #3A6D8F;
+  --color-code-bg: #B2DDB7;
+  --color-selection: rgba(78, 127, 82, 0.22);
+  --color-hover: rgba(0, 0, 0, 0.04);
+  --color-active: rgba(0, 0, 0, 0.08);
+  --color-text-secondary: #566B58;
+  --color-scrollbar: #8AB28E;
+  --color-scrollbar-hover: #6B9170;
+}
+
+/* ===== Dark Theme — PDD 9.1 暗色经典 ===== */
+[data-theme="dark"] {
+  --color-bg: #1E1E1E;
+  --color-sidebar-bg: #252525;
+  --color-menu-bg: #2A2A2A;
+  --color-border: #404040;
+  --color-text: #D4D4D4;
+  --color-heading: #F5F5F5;
+  --color-accent: #E8956A;
+  --color-link: #6BA3D6;
+  --color-code-bg: #2D2D2D;
+  --color-selection: rgba(232, 149, 106, 0.2);
+  --color-hover: rgba(255, 255, 255, 0.05);
+  --color-active: rgba(255, 255, 255, 0.08);
+  --color-text-secondary: #999999;
+  --color-scrollbar: #555555;
+  --color-scrollbar-hover: #777777;
+}
+
+/* ===== Layout Tokens — PDD 9.3 ===== */
+:root {
+  --sidebar-width: 240px;
+  --menubar-height: 32px;
+  --statusbar-height: 28px;
+  --editor-max-width: 800px;
+}
+
+/* ===== Typography Tokens — PDD 9.2 ===== */
+:root {
+  --font-body: "Source Han Sans SC", "Noto Sans SC", -apple-system, system-ui,
+    sans-serif;
+  --font-code: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  --font-ui: system-ui, -apple-system, sans-serif;
+}

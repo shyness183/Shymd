@@ -1,0 +1,63 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+}
+
+.picker {
+  background: var(--color-sidebar-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.label {
+  font-size: 13px;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  display: grid;
+  gap: 3px;
+}
+
+.cell {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: background 0.08s, border-color 0.08s;
+}
+
+.cell:hover {
+  border-color: var(--color-accent);
+}
+
+.cellActive {
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  border-color: var(--color-accent);
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--color-text);
+  opacity: 0.6;
+}
