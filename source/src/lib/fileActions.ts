@@ -95,8 +95,10 @@ ${body}
 }
 
 export function newFile() {
-  const { createFile } = useAppStore.getState()
-  createFile([], '未命名.md')
+  const state = useAppStore.getState()
+  const name = uniqueName(state.files, '未命名.md')
+  state.createFile([], name)
+  state.setEditingPath([name])
 }
 
 export async function openMarkdown() {

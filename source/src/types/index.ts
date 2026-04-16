@@ -69,6 +69,9 @@ export interface AppState {
   recentFiles: string[]
   addRecentFile: (name: string) => void
   clearRecentFiles: () => void
+
+  editingPath: string[] | null
+  setEditingPath: (path: string[] | null) => void
 }
 
 export type FindMode = 'find' | 'replace'

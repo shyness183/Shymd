@@ -29,12 +29,16 @@ export function TablePicker() {
   if (!open) return null
 
   const pick = (r: number, c: number) => {
-    if (editorMode === 'wysiwyg' && getCERoot()) {
-      htmlTable(r, c)
-    } else if (editorMode === 'source' && getEditorView()) {
-      cmdTable(r, c)
-    }
+    // Close picker first so the backdrop doesn't block editor focus
     setOpen(false)
+    requestAnimationFrame(() => {
+      if (editorMode === 'wysiwyg' && getCERoot()) {
+        htmlTable(r, c)
+      } else if (editorMode === 'source' && getEditorView()) {
+        getEditorView()!.focus()
+        cmdTable(r, c)
+      }
+    })
   }
 
   return (

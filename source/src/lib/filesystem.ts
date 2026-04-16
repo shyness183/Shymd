@@ -143,6 +143,27 @@ export async function getAppBaseDir(): Promise<string> {
   }
 }
 
+// ── Browser image picker (non-Tauri) ─────────────────────────────
+
+/** Pick an image via browser file input. Returns a data URL or null. */
+export function pickImageBrowser(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) { resolve(null); return }
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(file)
+    }
+    input.addEventListener('cancel', () => resolve(null))
+    input.click()
+  })
+}
+
 // ── Utility: build an absolute path from rootDir + path segments ──
 
 export function joinPath(rootDir: string, segments: string[]): string {

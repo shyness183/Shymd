@@ -218,17 +218,41 @@ export function cmdHyperlink() {
   view.focus()
 }
 
-export function cmdImage() {
+export async function cmdImage() {
   const view = _editorView
   if (!view) return
-  const { from, to } = view.state.selection.main
-  const selected = view.state.sliceDoc(from, to)
-  const replacement = `![${selected || 'alt'}](src)`
-  view.dispatch({
-    changes: { from, to, insert: replacement },
-    selection: { anchor: from + replacement.length - 4, head: from + replacement.length - 1 },
-  })
-  view.focus()
+
+  if ((window as any).__TAURI_INTERNALS__) {
+    const dialog = await import('@tauri-apps/plugin-dialog')
+    const result = await dialog.open({
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'] }],
+      multiple: false,
+    })
+    const filePath = typeof result === 'string' ? result : (result as any)?.path ?? null
+    if (!filePath) { view.focus(); return }
+    const { convertFileSrc } = await import('@tauri-apps/api/core')
+    const url = convertFileSrc(filePath)
+    const { from, to } = view.state.selection.main
+    const selected = view.state.sliceDoc(from, to)
+    const replacement = `![${selected || 'image'}](${url})`
+    view.dispatch({
+      changes: { from, to, insert: replacement },
+      selection: { anchor: from + replacement.length },
+    })
+    view.focus()
+  } else {
+    const { pickImageBrowser } = await import('./filesystem')
+    const url = await pickImageBrowser()
+    if (!url) { view.focus(); return }
+    const { from, to } = view.state.selection.main
+    const selected = view.state.sliceDoc(from, to)
+    const replacement = `![${selected || 'image'}](${url})`
+    view.dispatch({
+      changes: { from, to, insert: replacement },
+      selection: { anchor: from + replacement.length },
+    })
+    view.focus()
+  }
 }
 
 // --- Search commands ---

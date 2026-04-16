@@ -17,7 +17,7 @@ import { loadPersistedSession } from '../lib/persistState'
 // recovery). Falls back to sample data on first run.
 const persisted = loadPersistedSession()
 const initialFiles = persisted?.files ?? sampleFiles
-const initialActiveFile = persisted?.activeFile ?? '项目计划.md'
+const initialActiveFile = persisted?.activeFile ?? '欢迎使用 Shymd.md'
 const initialDoc = persisted?.doc ?? defaultDoc
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -190,4 +190,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     localStorage.removeItem('shymd-recent')
     set({ recentFiles: [] })
   },
+
+  editingPath: null,
+  setEditingPath: (path) => set({ editingPath: path }),
 }))

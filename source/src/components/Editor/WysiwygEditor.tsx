@@ -159,7 +159,206 @@ export function WysiwygEditor() {
     }, 400)
   }
 
+  // ─── Auto-format: detect markdown syntax and convert to HTML ─────
+  const autoFormat = () => {
+    const el = rootRef.current
+    if (!el) return
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return
+
+    // Find block-level parent (P or DIV only — skip existing structures)
+    let block: HTMLElement | null = null
+    let node: Node | null = sel.anchorNode
+    while (node && node !== el) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = (node as HTMLElement).tagName
+        if (tag === 'P' || tag === 'DIV') { block = node as HTMLElement; break }
+        if (['LI', 'PRE', 'CODE', 'BLOCKQUOTE', 'TABLE', 'TH', 'TD',
+             'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(tag)) return
+      }
+      node = node.parentNode
+    }
+    if (!block) return
+    // Normalize non-breaking spaces (\u00A0) to regular spaces for matching
+    const text = (block.textContent || '').replace(/\u00A0/g, ' ')
+
+    const place = (n: Node, off = 0) => {
+      const r = document.createRange(); r.setStart(n, off); r.collapse(true)
+      sel.removeAllRanges(); sel.addRange(r)
+    }
+
+    // Ordered list: "1. "
+    let m = text.match(/^(\d+)\. $/)
+    if (m) {
+      const ol = document.createElement('ol')
+      const start = parseInt(m[1])
+      if (start > 1) ol.start = start
+      const li = document.createElement('li')
+      li.innerHTML = '<br>'
+      ol.appendChild(li)
+      block.replaceWith(ol)
+      place(li, 0)
+      return
+    }
+
+    // Task list: "- [ ] " or "- [x] "
+    m = text.match(/^- \[[ x]?\] $/)
+    if (m) {
+      const ul = document.createElement('ul')
+      ul.className = 'task-list'
+      const li = document.createElement('li')
+      li.className = 'task-list-item'
+      const cb = document.createElement('input')
+      cb.type = 'checkbox'
+      cb.checked = text.includes('[x]')
+      li.appendChild(cb)
+      li.appendChild(document.createTextNode(' '))
+      ul.appendChild(li)
+      block.replaceWith(ul)
+      const r = document.createRange()
+      r.setStartAfter(li.lastChild!)
+      r.collapse(true)
+      sel.removeAllRanges(); sel.addRange(r)
+      return
+    }
+
+    // Unordered list: "- " / "* " / "+ "
+    if (/^[-*+] $/.test(text)) {
+      const ul = document.createElement('ul')
+      const li = document.createElement('li')
+      li.innerHTML = '<br>'
+      ul.appendChild(li)
+      block.replaceWith(ul)
+      place(li, 0)
+      return
+    }
+
+    // Blockquote: "> "
+    if (text === '> ') {
+      const bq = document.createElement('blockquote')
+      const p = document.createElement('p')
+      p.innerHTML = '<br>'
+      bq.appendChild(p)
+      block.replaceWith(bq)
+      place(p, 0)
+      return
+    }
+
+    // Headings: "# " ~ "###### "
+    m = text.match(/^(#{1,6}) $/)
+    if (m) {
+      const h = document.createElement(`h${m[1].length}`)
+      h.innerHTML = '<br>'
+      block.replaceWith(h)
+      place(h, 0)
+      return
+    }
+
+    // Horizontal rule: "---" or "***" or "___"
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(text.trim())) {
+      const hr = document.createElement('hr')
+      const p = document.createElement('p')
+      p.innerHTML = '<br>'
+      block.replaceWith(hr)
+      hr.after(p)
+      place(p, 0)
+      return
+    }
+  }
+
   const onInput = () => {
+    autoFormat()
+    scheduleSave()
+  }
+
+  // ─── List continuation on Enter ──────────────────────────────────
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey) return
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return
+
+    // Find closest <li> ancestor
+    let node: Node | null = sel.anchorNode
+    let li: HTMLLIElement | null = null
+    while (node && node !== rootRef.current) {
+      if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'LI') {
+        li = node as HTMLLIElement; break
+      }
+      node = node.parentNode
+    }
+    if (!li) return // Not in a list — let browser handle
+
+    const list = li.parentElement
+    if (!list || (list.tagName !== 'OL' && list.tagName !== 'UL')) return
+
+    // Check if list item text is empty (ignore checkbox for task lists)
+    const textClone = li.cloneNode(true) as HTMLElement
+    textClone.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.remove())
+    const text = textClone.textContent?.trim() || ''
+
+    if (!text) {
+      // Empty list item → exit list
+      e.preventDefault()
+      const p = document.createElement('p')
+      p.innerHTML = '<br>'
+      list.parentNode?.insertBefore(p, list.nextSibling)
+      li.remove()
+      if (!list.children.length) list.remove()
+      const r = document.createRange()
+      r.setStart(p, 0)
+      r.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(r)
+      scheduleSave()
+      return
+    }
+
+    // Non-empty → split at cursor and create new <li>
+    e.preventDefault()
+    const range = sel.getRangeAt(0)
+    const afterRange = document.createRange()
+    afterRange.setStart(range.endContainer, range.endOffset)
+    afterRange.setEndAfter(li.lastChild || li)
+    const afterFrag = afterRange.extractContents()
+
+    const newLi = document.createElement('li')
+    const isTask = !!li.querySelector('input[type="checkbox"]')
+    if (isTask) {
+      newLi.className = 'task-list-item'
+      const cb = document.createElement('input')
+      cb.type = 'checkbox'
+      cb.disabled = false
+      newLi.appendChild(cb)
+      newLi.appendChild(document.createTextNode(' '))
+    }
+
+    if (afterFrag.textContent?.trim()) {
+      newLi.appendChild(afterFrag)
+    } else {
+      newLi.appendChild(document.createElement('br'))
+    }
+
+    if (li.nextSibling) {
+      list.insertBefore(newLi, li.nextSibling)
+    } else {
+      list.appendChild(newLi)
+    }
+
+    // If current li is now visually empty, add <br>
+    if (!li.textContent?.trim() && !li.querySelector('input[type="checkbox"]')) {
+      li.appendChild(document.createElement('br'))
+    }
+
+    // Cursor at start of new item
+    const nr = document.createRange()
+    if (isTask && newLi.childNodes.length > 1) {
+      nr.setStartAfter(newLi.childNodes[1]) // after checkbox + space
+    } else {
+      nr.setStart(newLi, isTask ? 2 : 0)
+    }
+    nr.collapse(true)
+    sel.removeAllRanges()
+    sel.addRange(nr)
     scheduleSave()
   }
 
@@ -173,6 +372,7 @@ export function WysiwygEditor() {
         suppressContentEditableWarning
         spellCheck={false}
         onInput={onInput}
+        onKeyDown={onKeyDown}
       />
     </div>
   )

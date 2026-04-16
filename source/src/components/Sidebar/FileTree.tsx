@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useLocale } from '../../hooks/useLocale'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { uniqueName } from '../../lib/fileTreeUtils'
 import type { FileNode } from '../../types'
 import styles from './FileTree.module.css'
 
@@ -238,7 +239,8 @@ export function FileTree({ filter = '' }: { filter?: string }) {
   const [rootDropOver, setRootDropOver] = useState(false)
 
   const [ctx, setCtx] = useState<CtxState | null>(null)
-  const [editingPath, setEditingPath] = useState<string[] | null>(null)
+  const editingPath = useAppStore((s) => s.editingPath)
+  const setEditingPath = useAppStore((s) => s.setEditingPath)
 
   const handleFileClick = useCallback(
     (name: string, content: string) => {
@@ -267,6 +269,17 @@ export function FileTree({ filter = '' }: { filter?: string }) {
 
   const closeCtx = useCallback(() => setCtx(null), [])
 
+  // Helper to find children at a path in the file tree
+  const findSiblings = (path: string[]): FileNode[] => {
+    let current: FileNode[] = files
+    for (const seg of path) {
+      const folder = current.find((n) => n.name === seg && n.type === 'folder')
+      if (!folder?.children) return current
+      current = folder.children
+    }
+    return current
+  }
+
   const ctxItems = (): ContextMenuItem[] => {
     if (!ctx) return []
 
@@ -275,14 +288,19 @@ export function FileTree({ filter = '' }: { filter?: string }) {
         {
           label: t('contextMenu.newNote'),
           onClick: () => {
-            createFile(ctx.path, t('contextMenu.untitledNote'))
-            // Start renaming the new file
+            const siblings = findSiblings(ctx.path)
+            const finalName = uniqueName(siblings, t('contextMenu.untitledNote'))
+            createFile(ctx.path, finalName)
+            setEditingPath([...ctx.path, finalName])
           },
         },
         {
           label: t('contextMenu.newFolder'),
           onClick: () => {
-            createFolder(ctx.path, t('contextMenu.untitledFolder'))
+            const siblings = findSiblings(ctx.path)
+            const finalName = uniqueName(siblings, t('contextMenu.untitledFolder'))
+            createFolder(ctx.path, finalName)
+            setEditingPath([...ctx.path, finalName])
           },
         },
         { label: '', onClick: () => {}, separator: true },
@@ -324,11 +342,19 @@ export function FileTree({ filter = '' }: { filter?: string }) {
     return [
       {
         label: t('contextMenu.newNote'),
-        onClick: () => createFile([], t('contextMenu.untitledNote')),
+        onClick: () => {
+          const finalName = uniqueName(files, t('contextMenu.untitledNote'))
+          createFile([], finalName)
+          setEditingPath([finalName])
+        },
       },
       {
         label: t('contextMenu.newFolder'),
-        onClick: () => createFolder([], t('contextMenu.untitledFolder')),
+        onClick: () => {
+          const finalName = uniqueName(files, t('contextMenu.untitledFolder'))
+          createFolder([], finalName)
+          setEditingPath([finalName])
+        },
       },
     ]
   }

@@ -15,6 +15,28 @@ export function getCERoot(): HTMLElement | null {
   return _ceRoot
 }
 
+// ─── Saved selection (for table picker, etc.) ─────────────────────
+let _savedRange: Range | null = null
+
+export function saveSelection() {
+  const sel = window.getSelection()
+  if (sel && sel.rangeCount > 0 && _ceRoot && _ceRoot.contains(sel.anchorNode)) {
+    _savedRange = sel.getRangeAt(0).cloneRange()
+  }
+}
+
+function restoreSelection(): boolean {
+  if (!_savedRange || !_ceRoot) return false
+  _ceRoot.focus()
+  const sel = window.getSelection()
+  if (sel) {
+    sel.removeAllRanges()
+    sel.addRange(_savedRange)
+  }
+  _savedRange = null
+  return true
+}
+
 function focusRoot() {
   _ceRoot?.focus()
 }
@@ -257,7 +279,22 @@ export function htmlTaskList() {
 
 // Insert a table with `rows` data rows and `cols` columns.
 export function htmlTable(rows: number, cols: number) {
-  if (!selectionInsideRoot()) return
+  if (!_ceRoot) return
+  // Restore saved selection (lost when table picker was focused)
+  if (!selectionInsideRoot()) {
+    if (!restoreSelection()) {
+      // No saved selection — place cursor at end
+      _ceRoot.focus()
+      const s = window.getSelection()
+      if (s) {
+        const r = document.createRange()
+        r.selectNodeContents(_ceRoot)
+        r.collapse(false)
+        s.removeAllRanges()
+        s.addRange(r)
+      }
+    }
+  }
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0) return
   const table = document.createElement('table')
@@ -321,25 +358,53 @@ export function htmlHorizontalRule() {
   focusRoot()
 }
 
-// Image — prompt for URL, insert <img>
-export function htmlImage() {
-  if (!selectionInsideRoot()) return
+// Image — pick from file system (Tauri) or prompt URL (browser)
+export async function htmlImage() {
+  if (!_ceRoot) return
+  // Save selection before any async operation
   const sel = window.getSelection()
-  if (!sel || sel.rangeCount === 0) return
-  const range = sel.getRangeAt(0).cloneRange()
-  const altText = sel.isCollapsed ? '' : sel.toString()
+  let range: Range | null = null
+  let altText = ''
+  if (sel && sel.rangeCount > 0 && _ceRoot.contains(sel.anchorNode)) {
+    range = sel.getRangeAt(0).cloneRange()
+    altText = sel.isCollapsed ? '' : sel.toString()
+  }
 
-  const url = prompt('图片地址', 'https://')
+  let url: string | null = null
+
+  if ((window as any).__TAURI_INTERNALS__) {
+    const dialog = await import('@tauri-apps/plugin-dialog')
+    const result = await dialog.open({
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'] }],
+      multiple: false,
+    })
+    const filePath = typeof result === 'string' ? result : (result as any)?.path ?? null
+    if (!filePath) { focusRoot(); return }
+    const { convertFileSrc } = await import('@tauri-apps/api/core')
+    url = convertFileSrc(filePath)
+  } else {
+    const { pickImageBrowser } = await import('./filesystem')
+    url = await pickImageBrowser()
+  }
+
   if (!url) { focusRoot(); return }
 
-  sel.removeAllRanges()
-  sel.addRange(range)
+  // Restore selection
+  _ceRoot.focus()
+  if (range) {
+    const s = window.getSelection()
+    if (s) { s.removeAllRanges(); s.addRange(range) }
+  }
 
   const img = document.createElement('img')
   img.src = url
   img.alt = altText || 'image'
-  range.deleteContents()
-  range.insertNode(img)
+  const finalSel = window.getSelection()
+  if (finalSel && finalSel.rangeCount > 0) {
+    const r = finalSel.getRangeAt(0)
+    r.deleteContents()
+    r.insertNode(img)
+  }
   focusRoot()
 }
 
