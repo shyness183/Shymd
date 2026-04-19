@@ -15,6 +15,22 @@ export function ReadingView() {
     renderMermaidBlocks(el)
   }, [html])
 
+  // In reading mode, clicks on links open in browser/system
+  const onClick = (e: React.MouseEvent) => {
+    let node: Node | null = e.target as Node
+    while (node && node !== contentRef.current) {
+      if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'A') {
+        const href = (node as HTMLAnchorElement).href
+        if (href) {
+          e.preventDefault()
+          window.open(href, '_blank')
+        }
+        return
+      }
+      node = node.parentNode
+    }
+  }
+
   return (
     <div className={styles.editor}>
       <div
@@ -22,6 +38,7 @@ export function ReadingView() {
         className={styles.content}
         data-find-root="true"
         dangerouslySetInnerHTML={{ __html: html }}
+        onClick={onClick}
       />
     </div>
   )

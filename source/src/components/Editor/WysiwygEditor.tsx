@@ -362,6 +362,23 @@ export function WysiwygEditor() {
     scheduleSave()
   }
 
+  // ─── Ctrl+Click to open links ────────────────────────────────────
+  const onClick = (e: React.MouseEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return
+    let node: Node | null = e.target as Node
+    while (node && node !== rootRef.current) {
+      if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'A') {
+        const href = (node as HTMLAnchorElement).href
+        if (href) {
+          e.preventDefault()
+          window.open(href, '_blank')
+        }
+        return
+      }
+      node = node.parentNode
+    }
+  }
+
   return (
     <div className={styles.editor}>
       <div
@@ -373,6 +390,7 @@ export function WysiwygEditor() {
         spellCheck={false}
         onInput={onInput}
         onKeyDown={onKeyDown}
+        onClick={onClick}
       />
     </div>
   )

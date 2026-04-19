@@ -12,6 +12,7 @@ import { SettingsModal } from './components/Settings/SettingsModal'
 import { HelpModals } from './components/Help/HelpModals'
 import { FindReplacePanel } from './components/FindReplace/FindReplacePanel'
 import { TablePicker } from './components/TablePicker/TablePicker'
+import { LinkDialog } from './components/LinkDialog/LinkDialog'
 import styles from './App.module.css'
 
 export default function App() {
@@ -51,6 +52,7 @@ export default function App() {
       <HelpModals />
       <FindReplacePanel />
       <TablePicker />
+      <LinkDialog />
     </>
   )
 }

@@ -205,15 +205,20 @@ export function cmdHighlight() {
   wrapSelection(view, '==')
 }
 
-export function cmdHyperlink() {
+export async function cmdHyperlink() {
   const view = _editorView
   if (!view) return
   const { from, to } = view.state.selection.main
   const selected = view.state.sliceDoc(from, to)
-  const replacement = `[${selected || 'text'}](url)`
+
+  const { showLinkDialog } = await import('./linkDialog')
+  const result = await showLinkDialog(selected || '', '')
+  if (!result) { view.focus(); return }
+
+  const replacement = `[${result.text || result.url}](${result.url})`
   view.dispatch({
     changes: { from, to, insert: replacement },
-    selection: { anchor: from + replacement.length - 4, head: from + replacement.length - 1 },
+    selection: { anchor: from + replacement.length },
   })
   view.focus()
 }

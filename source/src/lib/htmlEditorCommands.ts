@@ -197,34 +197,54 @@ export function getActiveMark(): HTMLElement | null {
   return findAncestorTag(sel.anchorNode, 'mark', _ceRoot)
 }
 
-export function htmlHyperlink() {
-  if (!selectionInsideRoot()) return
+export async function htmlHyperlink() {
+  if (!_ceRoot) return
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0) return
 
-  // Save selection — prompt() may collapse it
+  // Save range before async dialog
   const range = sel.getRangeAt(0).cloneRange()
-  const hasText = !sel.isCollapsed
+  const selectedText = sel.isCollapsed ? '' : sel.toString()
 
-  const url = prompt('链接地址', 'https://')
-  if (!url) { focusRoot(); return }
+  // Detect if cursor is inside an existing <a>
+  let existingA: HTMLAnchorElement | null = null
+  let node: Node | null = sel.anchorNode
+  while (node && node !== _ceRoot) {
+    if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'A') {
+      existingA = node as HTMLAnchorElement; break
+    }
+    node = node.parentNode
+  }
 
-  // Restore selection
+  const { showLinkDialog } = await import('./linkDialog')
+  const result = await showLinkDialog(
+    selectedText || existingA?.textContent || '',
+    existingA?.getAttribute('href') || '',
+  )
+  if (!result) { focusRoot(); return }
+
+  _ceRoot.focus()
   sel.removeAllRanges()
   sel.addRange(range)
 
-  if (hasText) {
-    document.execCommand('createLink', false, url)
+  if (existingA) {
+    // Edit existing link in-place
+    existingA.href = result.url
+    if (result.text) existingA.textContent = result.text
+  } else if (!sel.isCollapsed) {
+    // Wrap selected text in a link
+    document.execCommand('createLink', false, result.url)
+    const newA = _ceRoot.querySelector(`a[href="${result.url}"]`) as HTMLAnchorElement | null
+    if (newA && result.text && result.text !== selectedText) newA.textContent = result.text
   } else {
-    // No text selected — insert a new <a> with the URL as display text
+    // No selection — insert new link node
     const a = document.createElement('a')
-    a.href = url
-    a.textContent = url
+    a.href = result.url
+    a.textContent = result.text || result.url
     range.insertNode(a)
-    sel.removeAllRanges()
     const r = document.createRange()
-    r.selectNodeContents(a)
-    sel.addRange(r)
+    r.setStartAfter(a); r.collapse(true)
+    sel.removeAllRanges(); sel.addRange(r)
   }
   focusRoot()
 }
