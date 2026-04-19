@@ -12,7 +12,7 @@ import {
   htmlHighlight, htmlHyperlink, htmlHeading, htmlParagraph,
   htmlQuote, htmlUnorderedList, htmlOrderedList, htmlTaskList,
   htmlCodeBlock, htmlImage, htmlInlineMath, htmlMathBlock,
-  htmlHorizontalRule, getCERoot,
+  htmlHorizontalRule, getCERoot, saveSelection,
 } from '../../lib/htmlEditorCommands'
 import { exportHTML, saveMarkdown, saveMarkdownAs, openMarkdown, openFolder, newFile } from '../../lib/fileActions'
 import { MenuDropdown } from './MenuDropdown'
@@ -134,7 +134,10 @@ export function MenuBar() {
     {
       label: t('menu.paragraph.table'),
       shortcut: 'Ctrl+T',
-      onClick: () => useAppStore.getState().setTablePickerOpen(true),
+      onClick: () => {
+        if (isWysiwyg()) saveSelection()
+        useAppStore.getState().setTablePickerOpen(true)
+      },
     },
   ]
 

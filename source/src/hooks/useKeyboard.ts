@@ -12,7 +12,7 @@ import {
   htmlHyperlink, htmlHeading, htmlParagraph, htmlQuote,
   htmlOrderedList, htmlUnorderedList, htmlCodeBlock,
   htmlImage, htmlInlineMath, htmlMathBlock,
-  getCERoot,
+  getCERoot, saveSelection,
 } from '../lib/htmlEditorCommands'
 import { saveMarkdown, saveMarkdownAs, openMarkdown, openFolder, newFile } from '../lib/fileActions'
 
@@ -154,6 +154,7 @@ export function useKeyboard() {
       }
       if (mod && e.key.toLowerCase() === 't' && !e.shiftKey) {
         e.preventDefault()
+        if (isWysiwygFocus()) saveSelection()
         useAppStore.getState().setTablePickerOpen(true)
         return
       }
