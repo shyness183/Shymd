@@ -32,3 +32,17 @@
   background: var(--color-hover);
   font-size: 11px;
 }
+
+.saved {
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--color-success, #3fb950);
+  opacity: 0.85;
+}
+
+.dirty {
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--color-accent, #d29922);
+  opacity: 0.95;
+}

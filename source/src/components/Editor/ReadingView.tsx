@@ -23,12 +23,26 @@ export function ReadingView() {
         const href = (node as HTMLAnchorElement).href
         if (href) {
           e.preventDefault()
-          window.open(href, '_blank')
+          openExternal(href)
         }
         return
       }
       node = node.parentNode
     }
+  }
+
+  // Open URL in system browser (Tauri) or new tab (browser)
+  const openExternal = async (url: string) => {
+    if ((window as any).__TAURI_INTERNALS__) {
+      try {
+        const { openUrl } = await import('@tauri-apps/plugin-opener')
+        await openUrl(url)
+        return
+      } catch (err) {
+        console.error('Failed to open URL via Tauri opener:', err)
+      }
+    }
+    window.open(url, '_blank')
   }
 
   return (

@@ -65,3 +65,27 @@
   margin-right: 6px;
   font-size: 11px;
 }
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 12px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 3px;
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.remove:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.item:hover .remove {
+  opacity: 0.8;
+  color: #ffffff;
+}

@@ -68,10 +68,24 @@ export interface AppState {
 
   recentFiles: string[]
   addRecentFile: (name: string) => void
+  removeRecentFile: (name: string) => void
   clearRecentFiles: () => void
 
   editingPath: string[] | null
   setEditingPath: (path: string[] | null) => void
+
+  /** Last known on-disk content of the active file (for dirty-state tracking). */
+  lastSavedDoc: string
+  /** Mark the current doc as saved (updates lastSavedDoc = doc). */
+  markSaved: () => void
+
+  /** Sidebar multi-select: paths of currently selected file nodes. */
+  selectedPaths: string[][]
+  setSelectedPaths: (paths: string[][]) => void
+  toggleSelectPath: (path: string[], additive: boolean) => void
+  clearSelectedPaths: () => void
+  /** Remove all selected nodes from the in-memory file tree (does NOT delete on disk). */
+  deleteSelectedFromTree: () => void
 }
 
 export type FindMode = 'find' | 'replace'

@@ -236,7 +236,25 @@ export async function cmdImage() {
     const filePath = typeof result === 'string' ? result : (result as any)?.path ?? null
     if (!filePath) { view.focus(); return }
     const { convertFileSrc } = await import('@tauri-apps/api/core')
-    const url = convertFileSrc(filePath)
+    const { useAppStore } = await import('../stores/useAppStore')
+    const cache = useAppStore.getState().settings.cachePath
+    let url: string
+    if (cache) {
+      try {
+        const { copyFile, createDir, pathExists } = await import('./filesystem')
+        if (!(await pathExists(cache))) await createDir(cache)
+        const base = filePath.split(/[\\/]/).pop() || 'image'
+        const stamp = Date.now().toString(36)
+        const cached = `${cache.replace(/[\\/]+$/, '')}/${stamp}_${base}`
+        await copyFile(filePath, cached)
+        url = convertFileSrc(cached)
+      } catch (err) {
+        console.error('Failed to cache image, using original path:', err)
+        url = convertFileSrc(filePath)
+      }
+    } else {
+      url = convertFileSrc(filePath)
+    }
     const { from, to } = view.state.selection.main
     const selected = view.state.sliceDoc(from, to)
     const replacement = `![${selected || 'image'}](${url})`

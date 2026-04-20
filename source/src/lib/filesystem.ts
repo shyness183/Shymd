@@ -118,14 +118,27 @@ export async function pickFolder(): Promise<string | null> {
 }
 
 /** Save-file dialog. Returns the chosen path or null. */
-export async function saveFileDialog(defaultName: string): Promise<string | null> {
+export async function saveFileDialog(
+  defaultName: string,
+  defaultDir?: string,
+): Promise<string | null> {
   if (!isTauri()) return null
   const dialog = await getDialogModule()
+  const defaultPath = defaultDir
+    ? `${defaultDir.replace(/[\\/]+$/, '')}/${defaultName}`
+    : defaultName
   const result = await dialog.save({
-    defaultPath: defaultName,
+    defaultPath,
     filters: [{ name: 'Markdown', extensions: ['md'] }],
   })
   return result ?? null
+}
+
+/** Copy a file from src to dest (Tauri only). */
+export async function copyFile(src: string, dest: string): Promise<void> {
+  if (!isTauri()) return
+  const fs = await getTauriFsModule()
+  await fs.copyFile(src, dest)
 }
 
 // ── App directory helpers ─────────────────────────────────────────

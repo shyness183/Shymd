@@ -11,14 +11,18 @@ import {
   moveNode as moveNodeInTree,
 } from '../lib/fileTreeUtils'
 import { loadSettings, saveSettings } from '../lib/settingsStorage'
-import { loadPersistedSession } from '../lib/persistState'
+import { isTauri, writeFileText, createDir, removePath, renamePath } from '../lib/filesystem'
 
-// Hydrate files/activeFile/doc from the last session if present (crash
-// recovery). Falls back to sample data on first run.
-const persisted = loadPersistedSession()
-const initialFiles = persisted?.files ?? sampleFiles
-const initialActiveFile = persisted?.activeFile ?? '欢迎使用 Shymd.md'
-const initialDoc = persisted?.doc ?? defaultDoc
+// Start with a fresh, empty editor on every launch (like Notepad).
+// Past files live in "Recent Files" history, and — in Tauri — on disk.
+// First-run users still see the sample welcome file to help onboarding.
+const isFirstRun = typeof localStorage !== 'undefined' && !localStorage.getItem('shymd-launched')
+if (typeof localStorage !== 'undefined') {
+  localStorage.setItem('shymd-launched', '1')
+}
+const initialFiles = isFirstRun ? sampleFiles : []
+const initialActiveFile = isFirstRun ? '欢迎使用 Shymd.md' : ''
+const initialDoc = isFirstRun ? defaultDoc : ''
 
 export const useAppStore = create<AppState>((set, get) => ({
   theme: 'light',
@@ -76,7 +80,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   zoomReset: () => set({ zoom: 100 }),
 
   createFile: (parentPath, name) => {
-    const { files } = get()
+    const { files, settings } = get()
     // Find siblings to ensure unique name
     const findSiblings = (tree: typeof files, path: string[]) => {
       let current = tree
@@ -94,11 +98,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       type: 'file',
       content: '',
     })
-    set({ files: newFiles, activeFile: finalName, doc: '' })
+    set({ files: newFiles, activeFile: finalName, doc: '', lastSavedDoc: '' })
+
+    // Write the new empty file to disk if Tauri + fileStoragePath configured
+    if (isTauri() && settings.fileStoragePath) {
+      const fullPath = [
+        settings.fileStoragePath.replace(/[\\/]+$/, ''),
+        ...parentPath,
+        finalName,
+      ].join('/')
+      writeFileText(fullPath, '').catch((err) =>
+        console.error('Failed to create file on disk:', err),
+      )
+    }
   },
 
   createFolder: (parentPath, name) => {
-    const { files } = get()
+    const { files, settings } = get()
     const findSiblings = (tree: typeof files, path: string[]) => {
       let current = tree
       for (const seg of path) {
@@ -116,29 +132,74 @@ export const useAppStore = create<AppState>((set, get) => ({
       children: [],
     })
     set({ files: newFiles })
+
+    if (isTauri() && settings.fileStoragePath) {
+      const fullPath = [
+        settings.fileStoragePath.replace(/[\\/]+$/, ''),
+        ...parentPath,
+        finalName,
+      ].join('/')
+      createDir(fullPath).catch((err) =>
+        console.error('Failed to create folder on disk:', err),
+      )
+    }
   },
 
   deleteNode: (path) => {
-    const { files, activeFile } = get()
+    const { files, activeFile, settings } = get()
     const nodeName = path[path.length - 1]
+
+    // Determine if it's a file or folder for disk removal
+    const findNode = (tree: typeof files, segs: string[]): typeof files[0] | null => {
+      let current: typeof files = tree
+      let node: typeof files[0] | null = null
+      for (const seg of segs) {
+        node = current.find((n) => n.name === seg) ?? null
+        if (!node) return null
+        if (node.children) current = node.children
+      }
+      return node
+    }
+    const node = findNode(files, path)
     const newFiles = removeNode(files, path)
-    // If the deleted file was active, clear editor
+
     if (nodeName === activeFile) {
-      set({ files: newFiles, activeFile: '', doc: '' })
+      set({ files: newFiles, activeFile: '', doc: '', lastSavedDoc: '' })
     } else {
       set({ files: newFiles })
+    }
+
+    // Mirror to disk if configured
+    if (isTauri() && settings.fileStoragePath && node) {
+      const fullPath = [
+        settings.fileStoragePath.replace(/[\\/]+$/, ''),
+        ...path,
+      ].join('/')
+      removePath(fullPath, node.type === 'folder').catch((err) =>
+        console.error('Failed to delete on disk:', err),
+      )
     }
   },
 
   renameNode: (path, newName) => {
-    const { files, activeFile } = get()
+    const { files, activeFile, settings } = get()
     const oldName = path[path.length - 1]
     const newFiles = renameNodeInTree(files, path, newName)
-    // If renaming the active file, update activeFile
+
     if (oldName === activeFile) {
       set({ files: newFiles, activeFile: newName })
     } else {
       set({ files: newFiles })
+    }
+
+    // Mirror to disk
+    if (isTauri() && settings.fileStoragePath) {
+      const root = settings.fileStoragePath.replace(/[\\/]+$/, '')
+      const oldPath = [root, ...path].join('/')
+      const newPath = [root, ...path.slice(0, -1), newName].join('/')
+      renamePath(oldPath, newPath).catch((err) =>
+        console.error('Failed to rename on disk:', err),
+      )
     }
   },
 
@@ -186,6 +247,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     localStorage.setItem('shymd-recent', JSON.stringify(next))
     set({ recentFiles: next })
   },
+  removeRecentFile: (name) => {
+    const { recentFiles } = get()
+    const next = recentFiles.filter((f) => f !== name)
+    localStorage.setItem('shymd-recent', JSON.stringify(next))
+    set({ recentFiles: next })
+  },
   clearRecentFiles: () => {
     localStorage.removeItem('shymd-recent')
     set({ recentFiles: [] })
@@ -193,4 +260,47 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   editingPath: null,
   setEditingPath: (path) => set({ editingPath: path }),
+
+  lastSavedDoc: initialDoc,
+  markSaved: () => set((s) => ({ lastSavedDoc: s.doc })),
+
+  selectedPaths: [],
+  deleteSelectedFromTree: () => {
+    // Remove selected nodes from the in-memory file tree only. Does NOT touch
+    // the on-disk files (matches user-requested behavior: "一键删除, 不影响本地文件").
+    const { files, selectedPaths, activeFile } = get()
+    if (selectedPaths.length === 0) return
+    // Sort deepest-first so sibling indices don't shift.
+    const sorted = [...selectedPaths].sort(
+      (a, b) => b.length - a.length || b.join('/').localeCompare(a.join('/')),
+    )
+    let next = files
+    let clearActive = false
+    for (const path of sorted) {
+      const nodeName = path[path.length - 1]
+      if (nodeName === activeFile) clearActive = true
+      next = removeNode(next, path)
+    }
+    if (clearActive) {
+      set({ files: next, selectedPaths: [], activeFile: '', doc: '', lastSavedDoc: '' })
+    } else {
+      set({ files: next, selectedPaths: [] })
+    }
+  },
+  setSelectedPaths: (paths) => set({ selectedPaths: paths }),
+  toggleSelectPath: (path, additive) => {
+    const { selectedPaths } = get()
+    const key = path.join('/')
+    const exists = selectedPaths.some((p) => p.join('/') === key)
+    if (additive) {
+      set({
+        selectedPaths: exists
+          ? selectedPaths.filter((p) => p.join('/') !== key)
+          : [...selectedPaths, path],
+      })
+    } else {
+      set({ selectedPaths: exists && selectedPaths.length === 1 ? [] : [path] })
+    }
+  },
+  clearSelectedPaths: () => set({ selectedPaths: [] }),
 }))

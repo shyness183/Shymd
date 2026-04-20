@@ -7,6 +7,9 @@ export interface MenuItem {
   checked?: boolean
   separator?: boolean
   onClick?: () => void
+  /** If provided, renders a small × button at the end of the row.
+   *  Clicking it triggers this callback WITHOUT closing the dropdown. */
+  onRemove?: () => void
 }
 
 interface Props {
@@ -62,6 +65,18 @@ export function MenuDropdown({ label, items }: Props) {
                 </span>
                 {item.shortcut && (
                   <span className={styles.shortcut}>{item.shortcut}</span>
+                )}
+                {item.onRemove && (
+                  <span
+                    className={styles.remove}
+                    title="移除"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      item.onRemove?.()
+                    }}
+                  >
+                    ×
+                  </span>
                 )}
               </button>
             )

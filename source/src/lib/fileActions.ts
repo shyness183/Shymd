@@ -30,9 +30,9 @@ export async function saveMarkdown() {
   const filename = name.endsWith('.md') ? name : name + '.md'
 
   if (isTauri()) {
+    const dialog = await import('@tauri-apps/plugin-dialog')
     if (!settings.fileStoragePath) {
       // Path not configured — prompt user, then open settings
-      const dialog = await import('@tauri-apps/plugin-dialog')
       await dialog.message(
         '您还未配置文件存储路径，请在偏好设置中配置后再保存。',
         { title: 'Shymd', kind: 'warning' },
@@ -40,33 +40,55 @@ export async function saveMarkdown() {
       useAppStore.getState().setSettingsOpen(true)
       return
     }
-    const filePath = joinPath(settings.fileStoragePath, [filename])
-    await writeFileText(filePath, doc)
-    return
+    try {
+      const filePath = joinPath(settings.fileStoragePath, [filename])
+      await writeFileText(filePath, doc)
+      useAppStore.getState().markSaved()
+      return
+    } catch (err) {
+      await dialog.message(
+        `保存失败：${err instanceof Error ? err.message : String(err)}`,
+        { title: 'Shymd', kind: 'error' },
+      )
+      return
+    }
   }
 
   // Browser fallback: download
   downloadBlob(filename, new Blob([doc], { type: 'text/markdown;charset=utf-8' }))
+  useAppStore.getState().markSaved()
 }
 
 export async function saveMarkdownAs() {
-  const { doc, activeFile } = useAppStore.getState()
+  const { doc, activeFile, settings } = useAppStore.getState()
   const name = activeFile || 'untitled.md'
   const filename = name.endsWith('.md') ? name : name + '.md'
 
   if (isTauri()) {
-    const path = await saveFileDialog(filename)
-    if (!path) return
-    await writeFileText(path, doc)
-    return
+    const dialog = await import('@tauri-apps/plugin-dialog')
+    try {
+      const path = await saveFileDialog(filename, settings.fileStoragePath || undefined)
+      if (!path) return
+      const finalPath = path.endsWith('.md') ? path : path + '.md'
+      await writeFileText(finalPath, doc)
+      useAppStore.getState().markSaved()
+      return
+    } catch (err) {
+      await dialog.message(
+        `保存失败：${err instanceof Error ? err.message : String(err)}`,
+        { title: 'Shymd', kind: 'error' },
+      )
+      return
+    }
   }
 
   // Browser fallback
   downloadBlob(filename, new Blob([doc], { type: 'text/markdown;charset=utf-8' }))
+  useAppStore.getState().markSaved()
 }
 
-export function exportHTML() {
-  const { doc, activeFile } = useAppStore.getState()
+export async function exportHTML() {
+  const { doc, activeFile, settings } = useAppStore.getState()
   const title = (activeFile || 'document').replace(/\.md$/, '')
   const body = md.render(doc)
   const html = `<!doctype html>
@@ -91,7 +113,19 @@ export function exportHTML() {
 ${body}
 </body>
 </html>`
-  downloadBlob(`${title}.html`, new Blob([html], { type: 'text/html;charset=utf-8' }))
+  const filename = `${title}.html`
+
+  if (isTauri() && settings.downloadPath) {
+    // Use configured download path directly
+    const filePath = joinPath(settings.downloadPath, [filename])
+    await writeFileText(filePath, html)
+    const dialog = await import('@tauri-apps/plugin-dialog')
+    await dialog.message(`已导出到：${filePath}`, { title: 'Shymd', kind: 'info' })
+    return
+  }
+
+  // Fallback: browser download
+  downloadBlob(filename, new Blob([html], { type: 'text/html;charset=utf-8' }))
 }
 
 export function newFile() {

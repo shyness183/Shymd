@@ -15,6 +15,7 @@
   "menu.file.export": "Export…",
   "menu.file.preferences": "Preferences",
   "menu.file.recent": "Recent Files",
+  "menu.file.clearRecent": "Clear Recent Files",
   "menu.file.quit": "Quit",
 
   "menu.edit.undo": "Undo",
@@ -104,6 +105,8 @@
   "status.words": "Words",
   "status.lines": "Lines",
   "status.readTime": "~{min} min read",
+  "status.saved": "Saved",
+  "status.unsaved": "Unsaved",
 
   "contextMenu.newNote": "New Note",
   "contextMenu.newFolder": "New Folder",
@@ -111,5 +114,6 @@
   "contextMenu.delete": "Delete",
   "contextMenu.confirmDelete": "Are you sure you want to delete",
   "contextMenu.untitledNote": "Untitled.md",
-  "contextMenu.untitledFolder": "New Folder"
+  "contextMenu.untitledFolder": "New Folder",
+  "contextMenu.items": "items"
 }

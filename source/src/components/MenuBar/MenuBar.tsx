@@ -38,6 +38,8 @@ export function MenuBar() {
   const setHelpModal = useAppStore((s) => s.setHelpModal)
   const recentFiles = useAppStore((s) => s.recentFiles)
   const setActiveFile = useAppStore((s) => s.setActiveFile)
+  const removeRecentFile = useAppStore((s) => s.removeRecentFile)
+  const clearRecentFiles = useAppStore((s) => s.clearRecentFiles)
 
   // Mode-aware dispatch: pick html* or cmd* depending on active editor
   const isWysiwyg = () => editorMode === 'wysiwyg' && !!getCERoot()
@@ -68,7 +70,15 @@ export function MenuBar() {
   }
 
   const recentItems: MenuItem[] = recentFiles.length > 0
-    ? recentFiles.map((name) => ({ label: name, onClick: () => openRecentFile(name) }))
+    ? [
+        ...recentFiles.map((name) => ({
+          label: name,
+          onClick: () => openRecentFile(name),
+          onRemove: () => removeRecentFile(name),
+        })),
+        { separator: true, label: '' } as MenuItem,
+        { label: t('menu.file.clearRecent'), onClick: clearRecentFiles },
+      ]
     : [{ label: t('menu.file.recent') + ' (∅)', onClick: () => {} }]
 
   const fileMenu: MenuItem[] = [

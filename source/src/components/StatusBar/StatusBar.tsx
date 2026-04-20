@@ -6,7 +6,10 @@ import styles from './StatusBar.module.css'
 export function StatusBar() {
   const { t } = useLocale()
   const doc = useAppStore((s) => s.doc)
+  const lastSavedDoc = useAppStore((s) => s.lastSavedDoc)
+  const activeFile = useAppStore((s) => s.activeFile)
   const editorMode = useAppStore((s) => s.editorMode)
+  const dirty = doc !== lastSavedDoc
 
   const stats = useMemo(() => {
     const text = doc.trim()
@@ -31,6 +34,11 @@ export function StatusBar() {
         <span className={styles.item}>{t('status.readTime', { min: String(stats.readMin) })}</span>
       </div>
       <div className={styles.right}>
+        {activeFile && (
+          <span className={dirty ? styles.dirty : styles.saved}>
+            {dirty ? `● ${t('status.unsaved')}` : `✓ ${t('status.saved')}`}
+          </span>
+        )}
         <span className={styles.mode}>{modeLabel}</span>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { useKeyboard } from './hooks/useKeyboard'
 import { useAutosave } from './hooks/useAutosave'
 import { useTypewriter } from './hooks/useTypewriter'
 import { useWindowState } from './hooks/useWindowState'
+import { useInitialLoad } from './hooks/useInitialLoad'
 import { MenuBar } from './components/MenuBar/MenuBar'
 import { Sidebar } from './components/Sidebar/Sidebar'
 import { Editor } from './components/Editor/Editor'
@@ -21,6 +22,7 @@ export default function App() {
   useAutosave()
   useTypewriter()
   useWindowState()
+  useInitialLoad()
 
   const sidebarVisible = useAppStore((s) => s.sidebarVisible)
   const sidebarWidth = useAppStore((s) => s.sidebarWidth)

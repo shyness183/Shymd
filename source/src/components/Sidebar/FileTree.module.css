@@ -24,6 +24,14 @@
   background: var(--color-active);
 }
 
+.itemSelected {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+.itemSelected.itemActive {
+  background: color-mix(in srgb, var(--color-accent) 35%, var(--color-active));
+}
+
 .arrow {
   width: 14px;
   font-size: 10px;

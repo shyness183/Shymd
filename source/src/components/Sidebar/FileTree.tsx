@@ -60,13 +60,15 @@ interface FileTreeItemProps {
   depth: number
   path: string[]
   activeFile: string
-  onFileClick: (name: string, content: string) => void
+  onFileClick: (name: string, content: string, path: string[], e: React.MouseEvent) => void
   onContext: (e: React.MouseEvent, path: string[], type: 'file' | 'folder') => void
   editingPath: string[] | null
   onRename: (path: string[], newName: string) => void
   onCancelRename: () => void
   onMove: (sourcePath: string[], destFolderPath: string[]) => void
   filter: string
+  selectedPaths: string[][]
+  onSelectToggle: (path: string[], additive: boolean) => void
 }
 
 function matchesFilter(node: FileNode, filter: string): boolean {
@@ -97,11 +99,15 @@ function FileTreeItem({
   onCancelRename,
   onMove,
   filter,
+  selectedPaths,
+  onSelectToggle,
 }: FileTreeItemProps) {
   const [expanded, setExpanded] = useState(true)
   const [dropOver, setDropOver] = useState(false)
   const dropDepthRef = useRef(0)
   const isEditing = pathsEqual(editingPath, path)
+  const pathKey = path.join('/')
+  const isSelected = selectedPaths.some((p) => p.join('/') === pathKey)
 
   if (!matchesFilter(node, filter)) return null
 
@@ -144,7 +150,7 @@ function FileTreeItem({
   }
 
   if (node.type === 'folder') {
-    const folderClass = `${styles.item} ${styles.folder}${dropOver ? ' ' + styles.dropTarget : ''}`
+    const folderClass = `${styles.item} ${styles.folder}${dropOver ? ' ' + styles.dropTarget : ''}${isSelected ? ' ' + styles.itemSelected : ''}`
     return (
       <div
         className={styles.folderZone}
@@ -158,7 +164,14 @@ function FileTreeItem({
           style={{ paddingLeft: 12 + depth * 16 }}
           draggable
           onDragStart={onDragStart}
-          onClick={() => setExpanded((e) => !e)}
+          onClick={(e) => {
+            if (e.ctrlKey || e.metaKey || e.shiftKey) {
+              e.stopPropagation()
+              onSelectToggle(path, true)
+              return
+            }
+            setExpanded((x) => !x)
+          }}
           onContextMenu={(e) => {
             e.preventDefault()
             e.stopPropagation()
@@ -192,6 +205,8 @@ function FileTreeItem({
               onCancelRename={onCancelRename}
               onMove={onMove}
               filter={filter}
+              selectedPaths={selectedPaths}
+              onSelectToggle={onSelectToggle}
             />
           ))}
       </div>
@@ -200,11 +215,18 @@ function FileTreeItem({
 
   return (
     <div
-      className={`${styles.item} ${activeFile === node.name ? styles.itemActive : ''}`}
+      className={`${styles.item} ${activeFile === node.name ? styles.itemActive : ''}${isSelected ? ' ' + styles.itemSelected : ''}`}
       style={{ paddingLeft: 12 + depth * 16 }}
       draggable
       onDragStart={onDragStart}
-      onClick={() => node.content != null && onFileClick(node.name, node.content)}
+      onClick={(e) => {
+        if (e.ctrlKey || e.metaKey || e.shiftKey) {
+          e.stopPropagation()
+          onSelectToggle(path, true)
+          return
+        }
+        if (node.content != null) onFileClick(node.name, node.content, path, e)
+      }}
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
@@ -236,6 +258,10 @@ export function FileTree({ filter = '' }: { filter?: string }) {
   const deleteNode = useAppStore((s) => s.deleteNode)
   const renameNode = useAppStore((s) => s.renameNode)
   const moveNode = useAppStore((s) => s.moveNode)
+  const selectedPaths = useAppStore((s) => s.selectedPaths)
+  const toggleSelectPath = useAppStore((s) => s.toggleSelectPath)
+  const clearSelectedPaths = useAppStore((s) => s.clearSelectedPaths)
+  const deleteSelectedFromTree = useAppStore((s) => s.deleteSelectedFromTree)
   const [rootDropOver, setRootDropOver] = useState(false)
 
   const [ctx, setCtx] = useState<CtxState | null>(null)
@@ -244,9 +270,10 @@ export function FileTree({ filter = '' }: { filter?: string }) {
 
   const handleFileClick = useCallback(
     (name: string, content: string) => {
+      clearSelectedPaths()
       setActiveFile(name, content)
     },
-    [setActiveFile]
+    [setActiveFile, clearSelectedPaths]
   )
 
   const handleContext = useCallback(
@@ -269,6 +296,31 @@ export function FileTree({ filter = '' }: { filter?: string }) {
 
   const closeCtx = useCallback(() => setCtx(null), [])
 
+  // ─── Delete key on multi-selection (soft delete — memory only) ────
+  const treeRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (selectedPaths.length === 0) return
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      // Only act if focus is within the sidebar tree (not inside the editor)
+      const active = document.activeElement
+      if (active && active.tagName === 'INPUT') return
+      if (active && active.tagName === 'TEXTAREA') return
+      if (active && (active as HTMLElement).isContentEditable) return
+      const root = treeRef.current
+      if (!root) return
+      if (document.activeElement && !root.contains(document.activeElement) && document.activeElement !== document.body) return
+      e.preventDefault()
+      const names = selectedPaths.map((p) => p[p.length - 1]).join(', ')
+      const msg = `${t('contextMenu.confirmDelete')} ${selectedPaths.length} ${t('contextMenu.items')}? (${names})`
+      if (confirm(msg)) {
+        deleteSelectedFromTree()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedPaths, deleteSelectedFromTree, t])
+
   // Helper to find children at a path in the file tree
   const findSiblings = (path: string[]): FileNode[] => {
     let current: FileNode[] = files
@@ -282,6 +334,25 @@ export function FileTree({ filter = '' }: { filter?: string }) {
 
   const ctxItems = (): ContextMenuItem[] => {
     if (!ctx) return []
+
+    // When 2+ items are multi-selected and user right-clicks one of them,
+    // offer a "Delete N items" action (memory-only, doesn't touch disk).
+    const ctxKey = ctx.path.join('/')
+    const rightClickedOnSelection =
+      selectedPaths.length >= 2 && selectedPaths.some((p) => p.join('/') === ctxKey)
+    if (rightClickedOnSelection) {
+      return [
+        {
+          label: `${t('contextMenu.delete')} (${selectedPaths.length})`,
+          onClick: () => {
+            const names = selectedPaths.map((p) => p[p.length - 1]).join(', ')
+            const msg = `${t('contextMenu.confirmDelete')} ${selectedPaths.length} ${t('contextMenu.items')}? (${names})`
+            if (confirm(msg)) deleteSelectedFromTree()
+          },
+          danger: true,
+        },
+      ]
+    }
 
     if (ctx.type === 'folder') {
       return [
@@ -384,11 +455,17 @@ export function FileTree({ filter = '' }: { filter?: string }) {
 
   return (
     <div
+      ref={treeRef}
+      tabIndex={-1}
       className={`${styles.tree}${rootDropOver ? ' ' + styles.treeDropTarget : ''}`}
       onContextMenu={handleBackgroundContext}
       onDragOver={onRootDragOver}
       onDragLeave={onRootDragLeave}
       onDrop={onRootDrop}
+      onClick={(e) => {
+        // Click on blank area clears multi-selection
+        if (e.target === e.currentTarget) clearSelectedPaths()
+      }}
       style={{ minHeight: '100%' }}
     >
       {files.map((node) => (
@@ -408,6 +485,8 @@ export function FileTree({ filter = '' }: { filter?: string }) {
           onCancelRename={() => setEditingPath(null)}
           onMove={moveNode}
           filter={filter}
+          selectedPaths={selectedPaths}
+          onSelectToggle={toggleSelectPath}
         />
       ))}
       {ctx && (

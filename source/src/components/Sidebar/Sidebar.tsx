@@ -9,9 +9,18 @@ import styles from './Sidebar.module.css'
 const SCROLL_EDGE = 40   // px from edge to start auto-scroll
 const SCROLL_SPEED = 8   // px per frame
 
+/** Truncate a long path for display: keep first segment + "..." + last 2 segments. */
+function truncatePath(full: string): string {
+  if (!full) return ''
+  const parts = full.split(/[\\/]/).filter(Boolean)
+  if (parts.length <= 3) return full
+  return [parts[0], '…', parts[parts.length - 2], parts[parts.length - 1]].join('\\')
+}
+
 export function Sidebar() {
   const activeTab = useAppStore((s) => s.activeTab)
   const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
+  const fileStoragePath = useAppStore((s) => s.settings.fileStoragePath)
   const [filter, setFilter] = useState('')
   const dragging = useRef(false)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -80,6 +89,11 @@ export function Sidebar() {
   return (
     <div className={styles.sidebar}>
       <SidebarTabs />
+      {activeTab === 'files' && fileStoragePath && (
+        <div className={styles.pathHeader} title={fileStoragePath}>
+          📁 {truncatePath(fileStoragePath)}
+        </div>
+      )}
       <SearchBox value={filter} onChange={setFilter} />
       <div
         ref={contentRef}

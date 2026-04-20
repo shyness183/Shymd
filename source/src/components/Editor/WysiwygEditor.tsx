@@ -297,7 +297,39 @@ export function WysiwygEditor() {
     const text = textClone.textContent?.trim() || ''
 
     if (!text) {
-      // Empty list item → exit list
+      // Empty list item. If this is the ONLY item in the list (i.e., the
+      // list was just created by autoFormat from typing "1. ") — create
+      // item 2 so the user can actually start a list. Only exit the list
+      // when the user presses Enter on an empty continuation item.
+      if (list.children.length === 1) {
+        e.preventDefault()
+        const newLi = document.createElement('li')
+        const isTask = !!li.querySelector('input[type="checkbox"]')
+        if (isTask) {
+          newLi.className = 'task-list-item'
+          const cb = document.createElement('input')
+          cb.type = 'checkbox'
+          cb.disabled = false
+          newLi.appendChild(cb)
+          newLi.appendChild(document.createTextNode(' '))
+        } else {
+          newLi.appendChild(document.createElement('br'))
+        }
+        list.appendChild(newLi)
+        const r = document.createRange()
+        if (isTask && newLi.childNodes.length > 1) {
+          r.setStartAfter(newLi.childNodes[1])
+        } else {
+          r.setStart(newLi, 0)
+        }
+        r.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(r)
+        scheduleSave()
+        return
+      }
+
+      // Multi-item list, current is empty → exit list (standard behaviour)
       e.preventDefault()
       const p = document.createElement('p')
       p.innerHTML = '<br>'
@@ -363,6 +395,19 @@ export function WysiwygEditor() {
   }
 
   // ─── Ctrl+Click to open links ────────────────────────────────────
+  const openExternal = async (url: string) => {
+    if ((window as any).__TAURI_INTERNALS__) {
+      try {
+        const { openUrl } = await import('@tauri-apps/plugin-opener')
+        await openUrl(url)
+        return
+      } catch (err) {
+        console.error('Failed to open URL via Tauri opener:', err)
+      }
+    }
+    window.open(url, '_blank')
+  }
+
   const onClick = (e: React.MouseEvent) => {
     if (!e.ctrlKey && !e.metaKey) return
     let node: Node | null = e.target as Node
@@ -371,7 +416,7 @@ export function WysiwygEditor() {
         const href = (node as HTMLAnchorElement).href
         if (href) {
           e.preventDefault()
-          window.open(href, '_blank')
+          openExternal(href)
         }
         return
       }

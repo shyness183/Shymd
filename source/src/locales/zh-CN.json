@@ -15,6 +15,7 @@
   "menu.file.export": "导出…",
   "menu.file.preferences": "偏好设置",
   "menu.file.recent": "最近文件",
+  "menu.file.clearRecent": "清空最近文件",
   "menu.file.quit": "退出",
 
   "menu.edit.undo": "撤销",
@@ -104,6 +105,8 @@
   "status.words": "字数",
   "status.lines": "行数",
   "status.readTime": "阅读约 {min} 分钟",
+  "status.saved": "已保存",
+  "status.unsaved": "未保存",
 
   "contextMenu.newNote": "新建笔记",
   "contextMenu.newFolder": "新建文件夹",
@@ -111,5 +114,6 @@
   "contextMenu.delete": "删除",
   "contextMenu.confirmDelete": "确定要删除",
   "contextMenu.untitledNote": "未命名.md",
-  "contextMenu.untitledFolder": "新建文件夹"
+  "contextMenu.untitledFolder": "新建文件夹",
+  "contextMenu.items": "项"
 }

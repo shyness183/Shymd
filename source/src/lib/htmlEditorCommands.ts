@@ -158,14 +158,26 @@ export function htmlHighlight(color?: string | null) {
   if (!sel || sel.rangeCount === 0) return
   const existing = findAncestorTag(sel.anchorNode, 'mark', _ceRoot)
 
+  // Use execCommand('insertHTML') so the browser records a single,
+  // undo-able step in its native undo stack. Manual DOM surgery via
+  // range.insertNode() is not tracked by execCommand undo.
   if (existing) {
     if (color) {
+      // Update color on existing mark. Undo won't perfectly restore the
+      // previous color (no native undo entry for style mutations) but the
+      // mark itself survives which is the common case.
       existing.style.background = color
       focusRoot()
       return
     }
-    // No color provided → toggle off
-    unwrapElement(existing)
+    // No color provided → toggle off. Select the full mark, replace with
+    // its inner HTML via insertHTML so undo puts the <mark> back.
+    const range = document.createRange()
+    range.selectNode(existing)
+    sel.removeAllRanges()
+    sel.addRange(range)
+    const inner = existing.innerHTML
+    document.execCommand('insertHTML', false, inner)
     focusRoot()
     return
   }
@@ -173,20 +185,16 @@ export function htmlHighlight(color?: string | null) {
   // No existing mark. If the selection is collapsed, nothing to highlight.
   if (sel.isCollapsed) return
 
-  // Create a fresh mark; attach color if provided.
+  // Wrap the current selection in a <mark>. Grab the selected HTML, build
+  // the replacement string, then let execCommand swap it in-place.
   const range = sel.getRangeAt(0)
-  const mark = document.createElement('mark')
-  if (color) mark.style.background = color
-  try {
-    mark.appendChild(range.extractContents())
-    range.insertNode(mark)
-    sel.removeAllRanges()
-    const r = document.createRange()
-    r.selectNodeContents(mark)
-    sel.addRange(r)
-  } catch {
-    /* noop */
-  }
+  const frag = range.cloneContents()
+  const container = document.createElement('div')
+  container.appendChild(frag)
+  const innerHtml = container.innerHTML
+  const styleAttr = color ? ` style="background:${color}"` : ''
+  const replacement = `<mark${styleAttr}>${innerHtml}</mark>`
+  document.execCommand('insertHTML', false, replacement)
   focusRoot()
 }
 
@@ -401,7 +409,26 @@ export async function htmlImage() {
     const filePath = typeof result === 'string' ? result : (result as any)?.path ?? null
     if (!filePath) { focusRoot(); return }
     const { convertFileSrc } = await import('@tauri-apps/api/core')
-    url = convertFileSrc(filePath)
+    // If cachePath is configured, copy the picked image into the cache and
+    // reference the cached copy, so the note survives even if the source moves.
+    const { useAppStore } = await import('../stores/useAppStore')
+    const cache = useAppStore.getState().settings.cachePath
+    if (cache) {
+      try {
+        const { copyFile, createDir, pathExists } = await import('./filesystem')
+        if (!(await pathExists(cache))) await createDir(cache)
+        const base = filePath.split(/[\\/]/).pop() || 'image'
+        const stamp = Date.now().toString(36)
+        const cached = `${cache.replace(/[\\/]+$/, '')}/${stamp}_${base}`
+        await copyFile(filePath, cached)
+        url = convertFileSrc(cached)
+      } catch (err) {
+        console.error('Failed to cache image, using original path:', err)
+        url = convertFileSrc(filePath)
+      }
+    } else {
+      url = convertFileSrc(filePath)
+    }
   } else {
     const { pickImageBrowser } = await import('./filesystem')
     url = await pickImageBrowser()
