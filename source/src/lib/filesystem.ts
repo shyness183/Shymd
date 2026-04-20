@@ -67,7 +67,7 @@ export async function createDir(dirPath: string): Promise<void> {
   await fs.mkdir(dirPath, { recursive: true })
 }
 
-/** Remove a file or directory. */
+/** Permanently remove a file or directory (bypasses the recycle bin). */
 export async function removePath(path: string, isDir: boolean): Promise<void> {
   if (!isTauri()) return
   const fs = await getTauriFsModule()
@@ -75,6 +75,23 @@ export async function removePath(path: string, isDir: boolean): Promise<void> {
     await fs.remove(path, { recursive: true })
   } else {
     await fs.remove(path)
+  }
+}
+
+/**
+ * Move a file or directory to the OS recycle bin (Windows) / Trash (macOS) /
+ * XDG trash (Linux). Falls back to permanent delete if the trash crate
+ * fails for any reason (e.g. filesystem doesn't support it). Prefer this
+ * over `removePath` for user-initiated deletions so the user can recover.
+ */
+export async function moveToTrash(path: string, isDir: boolean): Promise<void> {
+  if (!isTauri()) return
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('move_to_trash', { path })
+  } catch (err) {
+    console.warn('moveToTrash failed, falling back to permanent delete:', err)
+    await removePath(path, isDir)
   }
 }
 

@@ -14,6 +14,7 @@ import { HelpModals } from './components/Help/HelpModals'
 import { FindReplacePanel } from './components/FindReplace/FindReplacePanel'
 import { TablePicker } from './components/TablePicker/TablePicker'
 import { LinkDialog } from './components/LinkDialog/LinkDialog'
+import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog/ConfirmDeleteDialog'
 import styles from './App.module.css'
 
 export default function App() {
@@ -55,6 +56,7 @@ export default function App() {
       <FindReplacePanel />
       <TablePicker />
       <LinkDialog />
+      <ConfirmDeleteDialog />
     </>
   )
 }

@@ -46,7 +46,10 @@ export interface AppState {
 
   createFile: (parentPath: string[], name: string) => void
   createFolder: (parentPath: string[], name: string) => void
-  deleteNode: (path: string[]) => void
+  /** Delete a node from the tree. By default also removes it on disk
+   *  (Tauri). Pass `{ keepOnDisk: true }` to only remove from the sidebar
+   *  (e.g. the user answered "keep local files" in the confirm dialog). */
+  deleteNode: (path: string[], options?: { keepOnDisk?: boolean }) => void
   renameNode: (path: string[], newName: string) => void
   moveNode: (sourcePath: string[], destFolderPath: string[]) => void
   updateFileContent: (name: string, content: string) => void
@@ -84,8 +87,9 @@ export interface AppState {
   setSelectedPaths: (paths: string[][]) => void
   toggleSelectPath: (path: string[], additive: boolean) => void
   clearSelectedPaths: () => void
-  /** Remove all selected nodes from the in-memory file tree (does NOT delete on disk). */
-  deleteSelectedFromTree: () => void
+  /** Remove all selected nodes from the sidebar. By default keeps files on
+   *  disk; pass `{ alsoDeleteOnDisk: true }` to permanently delete them too. */
+  deleteSelectedFromTree: (options?: { alsoDeleteOnDisk?: boolean }) => void
 }
 
 export type FindMode = 'find' | 'replace'

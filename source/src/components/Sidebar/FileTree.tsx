@@ -3,6 +3,7 @@ import { useAppStore } from '../../stores/useAppStore'
 import { useLocale } from '../../hooks/useLocale'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { uniqueName } from '../../lib/fileTreeUtils'
+import { showDeleteDialog } from '../../lib/confirmDeleteDialog'
 import type { FileNode } from '../../types'
 import styles from './FileTree.module.css'
 
@@ -312,10 +313,14 @@ export function FileTree({ filter = '' }: { filter?: string }) {
       if (document.activeElement && !root.contains(document.activeElement) && document.activeElement !== document.body) return
       e.preventDefault()
       const names = selectedPaths.map((p) => p[p.length - 1]).join(', ')
-      const msg = `${t('contextMenu.confirmDelete')} ${selectedPaths.length} ${t('contextMenu.items')}? (${names})`
-      if (confirm(msg)) {
-        deleteSelectedFromTree()
-      }
+      showDeleteDialog({
+        name: names,
+        isFolder: true, // treat multi-select conservatively (may include folders)
+        count: selectedPaths.length,
+      }).then((choice) => {
+        if (choice === 'cancel') return
+        deleteSelectedFromTree({ alsoDeleteOnDisk: choice === 'hard' })
+      })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -346,8 +351,14 @@ export function FileTree({ filter = '' }: { filter?: string }) {
           label: `${t('contextMenu.delete')} (${selectedPaths.length})`,
           onClick: () => {
             const names = selectedPaths.map((p) => p[p.length - 1]).join(', ')
-            const msg = `${t('contextMenu.confirmDelete')} ${selectedPaths.length} ${t('contextMenu.items')}? (${names})`
-            if (confirm(msg)) deleteSelectedFromTree()
+            showDeleteDialog({
+              name: names,
+              isFolder: true,
+              count: selectedPaths.length,
+            }).then((choice) => {
+              if (choice === 'cancel') return
+              deleteSelectedFromTree({ alsoDeleteOnDisk: choice === 'hard' })
+            })
           },
           danger: true,
         },
@@ -382,9 +393,11 @@ export function FileTree({ filter = '' }: { filter?: string }) {
         {
           label: t('contextMenu.delete'),
           onClick: () => {
-            if (confirm(`${t('contextMenu.confirmDelete')} "${ctx.path[ctx.path.length - 1]}"?`)) {
-              deleteNode(ctx.path)
-            }
+            const name = ctx.path[ctx.path.length - 1]
+            showDeleteDialog({ name, isFolder: true }).then((choice) => {
+              if (choice === 'cancel') return
+              deleteNode(ctx.path, { keepOnDisk: choice === 'soft' })
+            })
           },
           danger: true,
         },
@@ -400,9 +413,11 @@ export function FileTree({ filter = '' }: { filter?: string }) {
         {
           label: t('contextMenu.delete'),
           onClick: () => {
-            if (confirm(`${t('contextMenu.confirmDelete')} "${ctx.path[ctx.path.length - 1]}"?`)) {
-              deleteNode(ctx.path)
-            }
+            const name = ctx.path[ctx.path.length - 1]
+            showDeleteDialog({ name, isFolder: false }).then((choice) => {
+              if (choice === 'cancel') return
+              deleteNode(ctx.path, { keepOnDisk: choice === 'soft' })
+            })
           },
           danger: true,
         },

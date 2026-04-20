@@ -11,7 +11,7 @@ import {
   moveNode as moveNodeInTree,
 } from '../lib/fileTreeUtils'
 import { loadSettings, saveSettings } from '../lib/settingsStorage'
-import { isTauri, writeFileText, createDir, removePath, renamePath } from '../lib/filesystem'
+import { isTauri, writeFileText, createDir, moveToTrash, renamePath } from '../lib/filesystem'
 
 // Start with a fresh, empty editor on every launch (like Notepad).
 // Past files live in "Recent Files" history, and — in Tauri — on disk.
@@ -145,7 +145,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  deleteNode: (path) => {
+  deleteNode: (path, options) => {
+    const keepOnDisk = options?.keepOnDisk ?? false
     const { files, activeFile, settings } = get()
     const nodeName = path[path.length - 1]
 
@@ -169,14 +170,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ files: newFiles })
     }
 
-    // Mirror to disk if configured
-    if (isTauri() && settings.fileStoragePath && node) {
+    // Mirror to disk if configured AND the caller did not opt out
+    if (!keepOnDisk && isTauri() && settings.fileStoragePath && node) {
       const fullPath = [
         settings.fileStoragePath.replace(/[\\/]+$/, ''),
         ...path,
       ].join('/')
-      removePath(fullPath, node.type === 'folder').catch((err) =>
-        console.error('Failed to delete on disk:', err),
+      moveToTrash(fullPath, node.type === 'folder').catch((err) =>
+        console.error('Failed to move to trash:', err),
       )
     }
   },
@@ -265,18 +266,30 @@ export const useAppStore = create<AppState>((set, get) => ({
   markSaved: () => set((s) => ({ lastSavedDoc: s.doc })),
 
   selectedPaths: [],
-  deleteSelectedFromTree: () => {
-    // Remove selected nodes from the in-memory file tree only. Does NOT touch
-    // the on-disk files (matches user-requested behavior: "一键删除, 不影响本地文件").
-    const { files, selectedPaths, activeFile } = get()
+  deleteSelectedFromTree: (options) => {
+    const alsoDeleteOnDisk = options?.alsoDeleteOnDisk ?? false
+    const { files, selectedPaths, activeFile, settings } = get()
     if (selectedPaths.length === 0) return
     // Sort deepest-first so sibling indices don't shift.
     const sorted = [...selectedPaths].sort(
       (a, b) => b.length - a.length || b.join('/').localeCompare(a.join('/')),
     )
+    // Pre-compute (path, node) pairs before mutation so we know which were folders.
+    const findNode = (tree: typeof files, segs: string[]): typeof files[0] | null => {
+      let current: typeof files = tree
+      let node: typeof files[0] | null = null
+      for (const seg of segs) {
+        node = current.find((n) => n.name === seg) ?? null
+        if (!node) return null
+        if (node.children) current = node.children
+      }
+      return node
+    }
+    const plan = sorted.map((p) => ({ path: p, node: findNode(files, p) }))
+
     let next = files
     let clearActive = false
-    for (const path of sorted) {
+    for (const { path } of plan) {
       const nodeName = path[path.length - 1]
       if (nodeName === activeFile) clearActive = true
       next = removeNode(next, path)
@@ -285,6 +298,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ files: next, selectedPaths: [], activeFile: '', doc: '', lastSavedDoc: '' })
     } else {
       set({ files: next, selectedPaths: [] })
+    }
+
+    // Mirror to disk only when the user explicitly confirmed "also delete local".
+    if (alsoDeleteOnDisk && isTauri() && settings.fileStoragePath) {
+      const root = settings.fileStoragePath.replace(/[\\/]+$/, '')
+      for (const { path, node } of plan) {
+        if (!node) continue
+        const fullPath = [root, ...path].join('/')
+        moveToTrash(fullPath, node.type === 'folder').catch((err) =>
+          console.error('Failed to move to trash:', err),
+        )
+      }
     }
   },
   setSelectedPaths: (paths) => set({ selectedPaths: paths }),

@@ -115,5 +115,17 @@
   "contextMenu.confirmDelete": "Are you sure you want to delete",
   "contextMenu.untitledNote": "Untitled.md",
   "contextMenu.untitledFolder": "New Folder",
-  "contextMenu.items": "items"
+  "contextMenu.items": "items",
+
+  "deleteDialog.title": "Delete",
+  "deleteDialog.titleMulti": "Delete",
+  "deleteDialog.items": "items",
+  "deleteDialog.bodyFolder": "Choose what to do with the folder and its contents on disk:",
+  "deleteDialog.bodyFile": "Choose what to do with the file on disk:",
+  "deleteDialog.softLabel": "Remove from sidebar only",
+  "deleteDialog.softHint": "Local files will be kept untouched.",
+  "deleteDialog.hardLabel": "Move to trash",
+  "deleteDialog.hardHint": "Send local files (including everything inside the folder) to the system recycle bin / trash. You can restore them later.",
+  "deleteDialog.cancel": "Cancel",
+  "deleteDialog.defaultHint": "Default: Remove from sidebar only. Enter to confirm, Esc to cancel."
 }

@@ -115,5 +115,17 @@
   "contextMenu.confirmDelete": "确定要删除",
   "contextMenu.untitledNote": "未命名.md",
   "contextMenu.untitledFolder": "新建文件夹",
-  "contextMenu.items": "项"
+  "contextMenu.items": "项",
+
+  "deleteDialog.title": "删除",
+  "deleteDialog.titleMulti": "删除所选",
+  "deleteDialog.items": "项",
+  "deleteDialog.bodyFolder": "请选择如何处理本地磁盘上的文件夹和其中的文件：",
+  "deleteDialog.bodyFile": "请选择如何处理本地磁盘上的文件：",
+  "deleteDialog.softLabel": "仅从侧边栏移除",
+  "deleteDialog.softHint": "本地文件保留不变。",
+  "deleteDialog.hardLabel": "移到回收站",
+  "deleteDialog.hardHint": "将本地磁盘上的文件（含文件夹内部的所有文件）移到系统回收站，可从回收站恢复。",
+  "deleteDialog.cancel": "取消",
+  "deleteDialog.defaultHint": "默认「仅从侧边栏移除」；按 Enter 确认，Esc 取消。"
 }
