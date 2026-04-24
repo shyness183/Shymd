@@ -8,6 +8,8 @@ export const defaultSettings: AppSettings = {
   cachePath: '',
   autoSave: true,
   autoSaveDelay: 1000,
+  spellcheck: false,
+  imageStoragePath: '',
 }
 
 export function loadSettings(): AppSettings {

@@ -1,0 +1,103 @@
+.menu {
+  position: fixed;
+  z-index: 900;
+  background: var(--color-menu-bg, #fff);
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-ui);
+  user-select: none;
+  animation: slashAppear 0.12s ease-out;
+}
+
+@keyframes slashAppear {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.header {
+  font-size: 11px;
+  color: var(--color-text-secondary, #888);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border, #eee);
+  background: var(--color-hover, #f7f7f7);
+  letter-spacing: 0.02em;
+}
+
+.list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text, #222);
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: background 0.1s;
+}
+
+.itemActive,
+.item:hover {
+  background: var(--color-active, var(--color-hover, #f0f0f0));
+}
+
+.icon {
+  flex: 0 0 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg, #fff);
+  border: 1px solid var(--color-border, #e3e3e3);
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #555);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.label {
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--color-text-secondary, #888);
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.empty {
+  padding: 18px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-secondary, #999);
+}
+
+.footer {
+  padding: 4px 12px;
+  font-size: 10px;
+  color: var(--color-text-secondary, #aaa);
+  border-top: 1px solid var(--color-border, #eee);
+  background: var(--color-hover, #f7f7f7);
+  letter-spacing: 0.02em;
+}

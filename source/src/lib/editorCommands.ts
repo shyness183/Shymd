@@ -136,12 +136,22 @@ export function cmdCodeBlock() {
   view.dispatch({ selection: { anchor: from - 4 } })
 }
 
-export function cmdMathBlock() {
+export async function cmdMathBlock() {
   const view = _editorView
   if (!view) return
-  insertBlock(view, '$$\n\n$$')
-  const { from } = view.state.selection.main
-  view.dispatch({ selection: { anchor: from - 3 } })
+  const { from, to } = view.state.selection.main
+  const seed = view.state.sliceDoc(from, to) || '\\int_0^1 x^2\\,dx'
+  const { showMathDialog } = await import('./mathDialog')
+  const result = await showMathDialog(seed, /* display */ true)
+  if (!result) { view.focus(); return }
+  const snippet = result.display
+    ? `\n$$\n${result.tex}\n$$\n`
+    : `$${result.tex}$`
+  view.dispatch({
+    changes: { from, to, insert: snippet },
+    selection: { anchor: from + snippet.length },
+  })
+  view.focus()
 }
 
 export function cmdHorizontalRule() {
@@ -193,10 +203,22 @@ export function cmdInlineCode() {
   wrapSelection(view, '`')
 }
 
-export function cmdInlineMath() {
+export async function cmdInlineMath() {
   const view = _editorView
   if (!view) return
-  wrapSelection(view, '$')
+  const { from, to } = view.state.selection.main
+  const seed = view.state.sliceDoc(from, to)
+  const { showMathDialog } = await import('./mathDialog')
+  const result = await showMathDialog(seed, /* display */ false)
+  if (!result) { view.focus(); return }
+  const snippet = result.display
+    ? `\n$$\n${result.tex}\n$$\n`
+    : `$${result.tex}$`
+  view.dispatch({
+    changes: { from, to, insert: snippet },
+    selection: { anchor: from + snippet.length },
+  })
+  view.focus()
 }
 
 export function cmdHighlight() {
@@ -276,6 +298,45 @@ export async function cmdImage() {
     })
     view.focus()
   }
+}
+
+/**
+ * Strip markdown decorators from the current selection in source mode.
+ *
+ * We deliberately only handle INLINE wrappers (bold / italic / strike /
+ * highlight / inline-code / inline-math / underline-html). Removing a
+ * heading or list prefix belongs in cmdParagraph; this command keeps its
+ * scope small and predictable so users don't lose block structure by
+ * accident.
+ */
+export function cmdClearFormat() {
+  const view = _editorView
+  if (!view) return
+  const { from, to } = view.state.selection.main
+  if (from === to) return
+  let text = view.state.sliceDoc(from, to)
+  // Strip pair-wrapped inline markers iteratively until nothing changes,
+  // so **_foo_** collapses cleanly.
+  let prev: string
+  do {
+    prev = text
+    text = text
+      .replace(/<\/?u>/gi, '')               // <u>...</u>
+      .replace(/<\/?mark[^>]*>/gi, '')       // <mark>...</mark>
+      .replace(/\*\*([\s\S]+?)\*\*/g, '$1')  // bold
+      .replace(/__([\s\S]+?)__/g, '$1')      // alt bold
+      .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '$1')  // italic *
+      .replace(/(?<!_)_([^_\n]+?)_(?!_)/g, '$1')      // italic _
+      .replace(/~~([\s\S]+?)~~/g, '$1')      // strikethrough
+      .replace(/==([\s\S]+?)==/g, '$1')      // highlight
+      .replace(/`([^`\n]+)`/g, '$1')         // inline code
+      .replace(/\$([^$\n]+)\$/g, '$1')       // inline math
+  } while (text !== prev)
+  view.dispatch({
+    changes: { from, to, insert: text },
+    selection: { anchor: from, head: from + text.length },
+  })
+  view.focus()
 }
 
 // --- Search commands ---

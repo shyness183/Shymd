@@ -1,19 +1,85 @@
-.section {
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
-}
-.section:last-of-type {
-  border-bottom: none;
+/* ── Two-column layout: tab rail on the left, pane on the right ── */
+.layout {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 0;
+  min-height: 380px;
+  max-height: 60vh;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--color-bg);
 }
 
-.sectionTitle {
+.tabs {
+  background: var(--color-sidebar-bg, var(--color-menu-bg, #fafafa));
+  border-right: 1px solid var(--color-border);
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary, #666);
   font-size: 13px;
+  font-family: inherit;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+
+.tab:hover {
+  background: var(--color-hover, #efefef);
+  color: var(--color-text, #222);
+}
+
+.tabActive {
+  background: var(--color-active, var(--color-hover, #e5e9f0));
+  color: var(--color-accent, #4a90e2);
+  font-weight: 500;
+}
+
+.tabIcon {
+  display: inline-flex;
+  width: 18px;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.tabLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pane {
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+
+/* ── Inner content (re-uses the old form styling) ───────────── */
+.sectionTitle {
+  font-size: 12px;
   font-weight: 600;
   color: var(--color-accent);
-  margin: 0 0 12px 0;
+  margin: 4px 0 10px 0;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+}
+
+.sectionTitle:not(:first-child) {
+  margin-top: 22px;
 }
 
 .row {
@@ -27,7 +93,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .label {
@@ -93,6 +159,7 @@
   font-size: 11px;
   color: var(--color-text-secondary);
   margin: 2px 0 0 0;
+  line-height: 1.5;
 }
 
 .unit {
@@ -100,12 +167,59 @@
   color: var(--color-text-secondary);
 }
 
+.featureList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+}
+
+.featureList li {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.kbList {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  margin-bottom: 8px;
+}
+
+.kbRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 2px;
+}
+
+.kbKey {
+  font-family: var(--font-code, monospace);
+  font-size: 11px;
+  padding: 2px 7px;
+  background: var(--color-hover, #eee);
+  color: var(--color-text, #222);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  min-width: 72px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.kbLabel {
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+/* ── Footer ─────────────────────────────────────────────────── */
 .footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 16px;
-  padding-top: 12px;
+  margin-top: 14px;
+  padding-top: 10px;
   border-top: 1px solid var(--color-border);
 }
 

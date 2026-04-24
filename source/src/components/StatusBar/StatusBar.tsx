@@ -1,7 +1,13 @@
 import { useMemo } from 'react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useLocale } from '../../hooks/useLocale'
+import type { EditorMode } from '../../types'
 import styles from './StatusBar.module.css'
+
+// Cycle order shown to the user when they click the mode pill.
+// Matches the Ctrl+/ behaviour in useKeyboard so there is exactly
+// one "next mode" contract in the app.
+const MODE_CYCLE: EditorMode[] = ['wysiwyg', 'source', 'reading']
 
 export function StatusBar() {
   const { t } = useLocale()
@@ -9,7 +15,14 @@ export function StatusBar() {
   const lastSavedDoc = useAppStore((s) => s.lastSavedDoc)
   const activeFile = useAppStore((s) => s.activeFile)
   const editorMode = useAppStore((s) => s.editorMode)
+  const setEditorMode = useAppStore((s) => s.setEditorMode)
   const dirty = doc !== lastSavedDoc
+
+  const cycleMode = () => {
+    const i = MODE_CYCLE.indexOf(editorMode)
+    const next = MODE_CYCLE[(i + 1) % MODE_CYCLE.length]
+    setEditorMode(next)
+  }
 
   const stats = useMemo(() => {
     const text = doc.trim()
@@ -39,7 +52,14 @@ export function StatusBar() {
             {dirty ? `● ${t('status.unsaved')}` : `✓ ${t('status.saved')}`}
           </span>
         )}
-        <span className={styles.mode}>{modeLabel}</span>
+        <button
+          type="button"
+          className={styles.mode}
+          onClick={cycleMode}
+          title={t('status.clickToCycleMode')}
+        >
+          {modeLabel}
+        </button>
       </div>
     </div>
   )

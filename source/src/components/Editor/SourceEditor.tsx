@@ -73,9 +73,10 @@ const listContinuation = keymap.of([{
       return true
     }
 
-    // Blockquote: "> content"
+    // Blockquote: "> content" — note: regex must require at least one
+    // space after > so "> " alone (empty blockquote line) exits, not doubles.
     m = text.match(/^(\s*>+\s?)(.*)$/)
-    if (m) {
+    if (m && m[1].trim().length > 0) {
       if (!m[2].trim()) {
         view.dispatch({ changes: { from: line.from, to: line.to, insert: '' }, selection: { anchor: line.from } })
         return true
@@ -87,6 +88,46 @@ const listContinuation = keymap.of([{
         selection: { anchor: line.from + before.length + 1 + m[1].length },
       })
       return true
+    }
+
+    // Fenced code block opener: "```lang" or "```" on its own line, cursor
+    // at end, and there is no matching closing fence below. Auto-insert a
+    // blank line + closing ``` and drop cursor between them. This mirrors
+    // how mature editors (VSCode, Obsidian) auto-close code fences.
+    const trimmedLine = text.trimEnd()
+    const fenceMatch = trimmedLine.match(/^(\s*)(```+|~~~+)([a-zA-Z0-9_+-]*)$/)
+    if (fenceMatch && cursorInLine === text.length) {
+      const indent = fenceMatch[1]
+      const fence = fenceMatch[2]
+      // Is there already a matching closing fence below? (simple heuristic:
+      // look for same-length fence on its own line)
+      const rest = view.state.doc.sliceString(line.to)
+      const closeRe = new RegExp(`(^|\\n)\\s*${fence}\\s*(\\n|$)`)
+      if (!closeRe.test(rest)) {
+        const insert = `\n${indent}\n${indent}${fence}`
+        view.dispatch({
+          changes: { from: line.to, to: line.to, insert },
+          selection: { anchor: line.to + 1 + indent.length },
+        })
+        return true
+      }
+    }
+
+    // Math block opener: "$$" on its own line with no closing "$$" below.
+    // Behave like the code fence: drop a blank line + "$$" below and place
+    // cursor on the blank line so the user can start typing LaTeX.
+    const mathMatch = trimmedLine.match(/^(\s*)\$\$$/)
+    if (mathMatch && cursorInLine === text.length) {
+      const indent = mathMatch[1]
+      const rest = view.state.doc.sliceString(line.to)
+      if (!/(^|\n)\s*\$\$\s*(\n|$)/.test(rest)) {
+        const insert = `\n${indent}\n${indent}$$`
+        view.dispatch({
+          changes: { from: line.to, to: line.to, insert },
+          selection: { anchor: line.to + 1 + indent.length },
+        })
+        return true
+      }
     }
 
     return false // Default behavior

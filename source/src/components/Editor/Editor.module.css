@@ -57,6 +57,19 @@
   outline: none;
 }
 
+/* "Type / to insert" hint — shown on empty paragraphs in WYSIWYG mode
+   while the editor has focus. Scoped to .wysiwyg so the ReadingView
+   (which shares .content) never shows a command prompt. Low opacity so
+   it doesn't compete visually with real content. */
+.wysiwyg.content:focus-within > p:empty::before {
+  content: "Type /";
+  color: var(--color-text-secondary, #999);
+  opacity: 0.35;
+  pointer-events: none;
+  font-style: italic;
+  font-size: 0.95em;
+}
+
 .content ul,
 .content ol {
   padding-left: 1.5em;

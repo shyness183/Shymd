@@ -8,6 +8,15 @@ export interface AppSettings {
   cachePath: string
   autoSave: boolean
   autoSaveDelay: number
+  /** Browser spellcheck on the editor surface. */
+  spellcheck: boolean
+  /**
+   * Where to copy images picked via Insert-Image. If blank, Shymd uses
+   * the picked file's original location. Distinct from `cachePath` so
+   * future features (plugin cache, thumbnails) can reuse cachePath
+   * without breaking image references in existing notes.
+   */
+  imageStoragePath: string
 }
 
 export interface FileNode {

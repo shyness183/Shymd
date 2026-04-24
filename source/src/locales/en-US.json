@@ -107,6 +107,7 @@
   "status.readTime": "~{min} min read",
   "status.saved": "Saved",
   "status.unsaved": "Unsaved",
+  "status.clickToCycleMode": "Click to cycle edit mode",
 
   "contextMenu.newNote": "New Note",
   "contextMenu.newFolder": "New Folder",

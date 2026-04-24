@@ -27,10 +27,20 @@
 
 .mode {
   white-space: nowrap;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: 3px;
   background: var(--color-hover);
   font-size: 11px;
+  color: inherit;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.mode:hover {
+  background: var(--color-active, var(--color-hover));
+  color: var(--color-text, currentColor);
 }
 
 .saved {

@@ -28,6 +28,34 @@
   font-family: var(--font-ui);
 }
 
+.footer {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-sidebar-bg);
+}
+
+.footerBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary, #888);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, transform 0.2s;
+}
+
+.footerBtn:hover {
+  background: var(--color-hover, #f0f0f0);
+  color: var(--color-text, #222);
+  transform: rotate(35deg);
+}
+
 .resizeHandle {
   position: absolute;
   top: 0;

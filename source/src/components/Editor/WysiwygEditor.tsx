@@ -96,6 +96,54 @@ turndown.addRule('mermaidBlock', {
   },
 })
 
+// Images — turndown's default swallows images whose src contains
+// parentheses or encoded characters (e.g. Tauri asset:// URLs with
+// %3A). Use an <angle-bracket> URL so the source survives the round
+// trip verbatim.
+turndown.addRule('image', {
+  filter: 'img',
+  replacement: (_content, node) => {
+    const el = node as HTMLImageElement
+    const alt = (el.getAttribute('alt') || '').replace(/[\[\]]/g, '')
+    const src = el.getAttribute('src') || ''
+    const title = el.getAttribute('title') || ''
+    if (!src) return ''
+    const needsAngle = /[()\s]/.test(src)
+    const srcPart = needsAngle ? `<${src}>` : src
+    const titlePart = title ? ` "${title.replace(/"/g, '\\"')}"` : ''
+    return `![${alt}](${srcPart}${titlePart})`
+  },
+})
+
+// Tables — turndown's default emits plaintext that doesn't round-trip.
+// Convert to GFM pipe tables which markdown-it's built-in table rule
+// renders back to <table>.
+turndown.addRule('gfmTable', {
+  filter: 'table',
+  replacement: (_content, node) => {
+    const table = node as HTMLTableElement
+    const rows = Array.from(table.rows)
+    if (rows.length === 0) return ''
+    const cellText = (c: HTMLTableCellElement) =>
+      (c.textContent || '').replace(/\|/g, '\\|').replace(/\n+/g, ' ').trim()
+    const headCells = Array.from(rows[0].cells).map(cellText)
+    const cols = headCells.length || 1
+    const header = '| ' + headCells.join(' | ') + ' |'
+    const sep = '| ' + Array(cols).fill('---').join(' | ') + ' |'
+    const body = rows.slice(1).map((r) => {
+      const cells = Array.from(r.cells).map(cellText)
+      while (cells.length < cols) cells.push('')
+      return '| ' + cells.join(' | ') + ' |'
+    })
+    return '\n\n' + [header, sep, ...body].join('\n') + '\n\n'
+  },
+})
+// Skip nested table children so gfmTable has sole control.
+turndown.addRule('tableParts', {
+  filter: ['thead', 'tbody', 'tr', 'th', 'td'] as any,
+  replacement: (content) => content,
+})
+
 // Preserve .front-matter as YAML front matter
 turndown.addRule('frontMatter', {
   filter: (node) => {
@@ -113,6 +161,7 @@ turndown.addRule('frontMatter', {
 export function WysiwygEditor() {
   const doc = useAppStore((s) => s.doc)
   const setDoc = useAppStore((s) => s.setDoc)
+  const spellcheck = useAppStore((s) => s.settings.spellcheck)
   const activeFilePath = useAppStore((s) => s.activeFilePath)
   const activeFileKey = activeFilePath.join('/')
   const rootRef = useRef<HTMLDivElement>(null)
@@ -280,21 +329,112 @@ export function WysiwygEditor() {
     scheduleSave()
   }
 
-  // ─── List continuation on Enter ──────────────────────────────────
+  // ─── List / blockquote / code-block continuation on Enter ───────
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey) return
     const sel = window.getSelection()
     if (!sel || sel.rangeCount === 0) return
 
-    // Find closest <li> ancestor
+    // Find closest relevant ancestor: <li>, <blockquote>, or <pre>.
+    // First ancestor we hit wins, so nested list-in-blockquote still
+    // prefers list behaviour (correct).
     let node: Node | null = sel.anchorNode
     let li: HTMLLIElement | null = null
+    let pre: HTMLPreElement | null = null
+    let bq: HTMLQuoteElement | null = null
     while (node && node !== rootRef.current) {
-      if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'LI') {
-        li = node as HTMLLIElement; break
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = (node as HTMLElement).tagName
+        if (tag === 'LI' && !li && !pre && !bq) { li = node as HTMLLIElement; break }
+        if (tag === 'PRE' && !pre) { pre = node as HTMLPreElement; break }
+        if (tag === 'BLOCKQUOTE' && !bq) { bq = node as HTMLQuoteElement; break }
       }
       node = node.parentNode
     }
+
+    // ─── Inside <pre><code>: insert a literal newline, never exit ──
+    // contentEditable default drops the user out of the <code>; we
+    // override to keep them inside so multiline code keeps working.
+    if (pre) {
+      e.preventDefault()
+      const range = sel.getRangeAt(0)
+      range.deleteContents()
+      const nl = document.createTextNode('\n')
+      range.insertNode(nl)
+      // If this was the last character of the <code>, Chrome collapses
+      // the final \n — append a zero-width space sentinel to keep the
+      // cursor visible.
+      if (!nl.nextSibling) {
+        const zw = document.createTextNode('\u200B')
+        nl.parentNode?.appendChild(zw)
+        range.setStartAfter(nl)
+      } else {
+        range.setStartAfter(nl)
+      }
+      range.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(range)
+      scheduleSave()
+      return
+    }
+
+    // ─── Inside <blockquote>: continue with a new <p>, or exit on
+    // empty-line Enter (matching standard rich-text editor UX) ─────
+    if (bq) {
+      // Find the direct-child <p> we're in
+      let pNode: HTMLElement | null = null
+      let n: Node | null = sel.anchorNode
+      while (n && n !== bq) {
+        if (n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName === 'P') {
+          pNode = n as HTMLElement; break
+        }
+        n = n.parentNode
+      }
+      const currentText = (pNode?.textContent || '').trim()
+      // Empty paragraph + Enter → exit blockquote
+      if (pNode && !currentText) {
+        e.preventDefault()
+        const escape = document.createElement('p')
+        escape.innerHTML = '<br>'
+        bq.parentNode?.insertBefore(escape, bq.nextSibling)
+        pNode.remove()
+        if (!bq.children.length) bq.remove()
+        const r = document.createRange()
+        r.setStart(escape, 0); r.collapse(true)
+        sel.removeAllRanges(); sel.addRange(r)
+        scheduleSave()
+        return
+      }
+      // Non-empty: split at cursor, new <p> inside the blockquote
+      e.preventDefault()
+      const range = sel.getRangeAt(0)
+      const newP = document.createElement('p')
+      if (pNode) {
+        const tail = document.createRange()
+        tail.setStart(range.endContainer, range.endOffset)
+        tail.setEndAfter(pNode.lastChild || pNode)
+        const frag = tail.extractContents()
+        if (frag.textContent?.trim() || frag.childNodes.length > 0) {
+          newP.appendChild(frag)
+        } else {
+          newP.appendChild(document.createElement('br'))
+        }
+        if (pNode.nextSibling) {
+          bq.insertBefore(newP, pNode.nextSibling)
+        } else {
+          bq.appendChild(newP)
+        }
+      } else {
+        newP.appendChild(document.createElement('br'))
+        bq.appendChild(newP)
+      }
+      const nr = document.createRange()
+      nr.setStart(newP, 0); nr.collapse(true)
+      sel.removeAllRanges(); sel.addRange(nr)
+      scheduleSave()
+      return
+    }
+
     if (!li) return // Not in a list — let browser handle
 
     const list = li.parentElement
@@ -441,7 +581,7 @@ export function WysiwygEditor() {
         data-find-root="true"
         contentEditable
         suppressContentEditableWarning
-        spellCheck={false}
+        spellCheck={spellcheck}
         onInput={onInput}
         onKeyDown={onKeyDown}
         onClick={onClick}

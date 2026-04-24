@@ -14,6 +14,8 @@ import { HelpModals } from './components/Help/HelpModals'
 import { FindReplacePanel } from './components/FindReplace/FindReplacePanel'
 import { TablePicker } from './components/TablePicker/TablePicker'
 import { LinkDialog } from './components/LinkDialog/LinkDialog'
+import { MathDialog } from './components/MathDialog/MathDialog'
+import { SlashMenu } from './components/SlashMenu/SlashMenu'
 import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog/ConfirmDeleteDialog'
 import { ToastHost } from './components/Toast/Toast'
 import { useLaunchFile } from './hooks/useLaunchFile'
@@ -59,6 +61,8 @@ export default function App() {
       <FindReplacePanel />
       <TablePicker />
       <LinkDialog />
+      <MathDialog />
+      <SlashMenu />
       <ConfirmDeleteDialog />
       <ToastHost />
     </>

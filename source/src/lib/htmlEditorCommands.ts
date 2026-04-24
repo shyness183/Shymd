@@ -455,46 +455,108 @@ export async function htmlImage() {
   focusRoot()
 }
 
-// Inline math — wrap selection in <code class="language-math"> for display,
-// and Turndown converts it back to $...$
-export function htmlInlineMath() {
+/**
+ * Clear inline formatting in contentEditable. `execCommand('removeFormat')`
+ * handles the browser-native marks (bold/italic/underline/strike/color);
+ * we then manually unwrap the markdown-specific tags the browser doesn't
+ * know about: <mark>, <code>, and our custom inline-math spans.
+ */
+export function htmlClearFormat() {
   if (!selectionInsideRoot()) return
   const sel = window.getSelection()
-  if (!sel || sel.rangeCount === 0) return
-  const range = sel.getRangeAt(0).cloneRange()
-  const tex = sel.isCollapsed ? '' : sel.toString()
-
-  const formula = prompt('LaTeX 公式', tex || 'E=mc^2')
-  if (!formula) { focusRoot(); return }
-
-  sel.removeAllRanges()
-  sel.addRange(range)
-
-  // Insert raw $formula$ text — the turndown→markdown→re-render cycle
-  // will produce KaTeX rendering on next save
-  const span = document.createElement('span')
-  span.textContent = `$${formula}$`
-  range.deleteContents()
-  range.insertNode(span)
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return
+  try {
+    document.execCommand('removeFormat')
+  } catch {
+    /* ignore — some Chromium builds throw on cross-element selections */
+  }
+  // Unwrap mark/code that removeFormat doesn't touch.
+  if (!_ceRoot) return
+  const range = sel.getRangeAt(0)
+  const walker = document.createTreeWalker(_ceRoot, NodeFilter.SHOW_ELEMENT, {
+    acceptNode: (node) => {
+      const el = node as HTMLElement
+      if (!range.intersectsNode(el)) return NodeFilter.FILTER_REJECT
+      const tag = el.tagName
+      return (tag === 'MARK' || tag === 'CODE' || tag === 'U' || tag === 'S' || tag === 'DEL' || tag === 'STRONG' || tag === 'EM' || tag === 'B' || tag === 'I')
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_SKIP
+    },
+  })
+  const targets: HTMLElement[] = []
+  let cur = walker.nextNode() as HTMLElement | null
+  while (cur) {
+    targets.push(cur)
+    cur = walker.nextNode() as HTMLElement | null
+  }
+  // Unwrap in reverse so earlier unwraps don't shift later references.
+  for (let i = targets.length - 1; i >= 0; i--) {
+    const el = targets[i]
+    const parent = el.parentNode
+    if (!parent) continue
+    while (el.firstChild) parent.insertBefore(el.firstChild, el)
+    parent.removeChild(el)
+  }
   focusRoot()
 }
 
-// Math block — insert $$...$$ block
-export function htmlMathBlock() {
+// Inline math — opens the custom LaTeX dialog (live KaTeX preview) and
+// inserts the result as $...$ (or $$...$$ if the user flips to block).
+export async function htmlInlineMath() {
+  if (!selectionInsideRoot()) return
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return
+  const range = sel.getRangeAt(0).cloneRange()
+  const seed = sel.isCollapsed ? '' : sel.toString()
+
+  const { showMathDialog } = await import('./mathDialog')
+  const result = await showMathDialog(seed, /* display */ false)
+  if (!result) { focusRoot(); return }
+
+  // Restore the pre-dialog selection before inserting.
+  _ceRoot?.focus()
+  const s = window.getSelection()
+  if (s) { s.removeAllRanges(); s.addRange(range) }
+
+  if (result.display) {
+    const div = document.createElement('div')
+    div.textContent = `$$${result.tex}$$`
+    range.collapse(false)
+    range.insertNode(div)
+  } else {
+    const span = document.createElement('span')
+    span.textContent = `$${result.tex}$`
+    range.deleteContents()
+    range.insertNode(span)
+  }
+  focusRoot()
+}
+
+// Math block — same dialog, default to block mode.
+export async function htmlMathBlock() {
   if (!selectionInsideRoot()) return
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0) return
   const range = sel.getRangeAt(0).cloneRange()
 
-  const formula = prompt('LaTeX 块级公式', '\\int_0^1 x^2 dx')
-  if (!formula) { focusRoot(); return }
+  const { showMathDialog } = await import('./mathDialog')
+  const result = await showMathDialog('\\int_0^1 x^2\\,dx', /* display */ true)
+  if (!result) { focusRoot(); return }
 
-  sel.removeAllRanges()
-  sel.addRange(range)
+  _ceRoot?.focus()
+  const s = window.getSelection()
+  if (s) { s.removeAllRanges(); s.addRange(range) }
 
-  const div = document.createElement('div')
-  div.textContent = `$$${formula}$$`
-  range.collapse(false)
-  range.insertNode(div)
+  if (result.display) {
+    const div = document.createElement('div')
+    div.textContent = `$$${result.tex}$$`
+    range.collapse(false)
+    range.insertNode(div)
+  } else {
+    const span = document.createElement('span')
+    span.textContent = `$${result.tex}$`
+    range.deleteContents()
+    range.insertNode(span)
+  }
   focusRoot()
 }

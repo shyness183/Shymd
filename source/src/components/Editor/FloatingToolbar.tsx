@@ -5,14 +5,16 @@ import {
   cmdBold, cmdItalic, cmdStrikethrough, cmdInlineCode,
   cmdHighlight, cmdHyperlink, cmdHeading, cmdParagraph,
   cmdQuote, cmdUnorderedList, cmdOrderedList, cmdTaskList,
-  cmdCodeBlock, getEditorView,
+  cmdCodeBlock, cmdUnderline, cmdInlineMath, cmdImage, cmdClearFormat,
+  getEditorView,
 } from '../../lib/editorCommands'
 // Edit-mode (contentEditable) commands
 import {
   htmlBold, htmlItalic, htmlStrikethrough, htmlInlineCode,
   htmlHighlight, htmlHyperlink, htmlHeading, htmlParagraph,
   htmlQuote, htmlUnorderedList, htmlOrderedList, htmlTaskList,
-  htmlCodeBlock, getCERoot, getActiveMark,
+  htmlCodeBlock, htmlUnderline, htmlInlineMath, htmlImage, htmlClearFormat,
+  getCERoot, getActiveMark,
 } from '../../lib/htmlEditorCommands'
 import styles from './FloatingToolbar.module.css'
 
@@ -47,11 +49,15 @@ function hlColor(hue: number, shade: number): string {
 // "Regular" format buttons — highlight handled separately so it can
 // host its own popover.
 const makeFormatButtons = (mode: Mode) => [
-  { key: 'bold',   label: 'B',   title: '加粗',     action: mode === 'source' ? cmdBold : htmlBold,             style: { fontWeight: 700 } as React.CSSProperties },
-  { key: 'italic', label: 'I',   title: '斜体',     action: mode === 'source' ? cmdItalic : htmlItalic,         style: { fontStyle: 'italic' } as React.CSSProperties },
-  { key: 'strike', label: 'S',   title: '删除线',   action: mode === 'source' ? cmdStrikethrough : htmlStrikethrough, style: { textDecoration: 'line-through' } as React.CSSProperties },
-  { key: 'code',   label: '</>', title: '行内代码',  action: mode === 'source' ? cmdInlineCode : htmlInlineCode, style: { fontFamily: 'var(--font-code, monospace)', fontSize: '11px', letterSpacing: '-0.5px' } as React.CSSProperties },
-  { key: 'link',   label: '🔗',  title: '超链接',   action: mode === 'source' ? cmdHyperlink : htmlHyperlink,   style: {} as React.CSSProperties },
+  { key: 'bold',    label: 'B',   title: '加粗',       action: mode === 'source' ? cmdBold : htmlBold,             style: { fontWeight: 700 } as React.CSSProperties },
+  { key: 'italic',  label: 'I',   title: '斜体',       action: mode === 'source' ? cmdItalic : htmlItalic,         style: { fontStyle: 'italic' } as React.CSSProperties },
+  { key: 'underline', label: 'U', title: '下划线',     action: mode === 'source' ? cmdUnderline : htmlUnderline,   style: { textDecoration: 'underline' } as React.CSSProperties },
+  { key: 'strike',  label: 'S',   title: '删除线',     action: mode === 'source' ? cmdStrikethrough : htmlStrikethrough, style: { textDecoration: 'line-through' } as React.CSSProperties },
+  { key: 'code',    label: '</>', title: '行内代码',    action: mode === 'source' ? cmdInlineCode : htmlInlineCode, style: { fontFamily: 'var(--font-code, monospace)', fontSize: '11px', letterSpacing: '-0.5px' } as React.CSSProperties },
+  { key: 'math',    label: '∑',   title: '行内数学',    action: mode === 'source' ? cmdInlineMath : htmlInlineMath, style: { fontFamily: 'KaTeX_Math, serif', fontStyle: 'italic' } as React.CSSProperties },
+  { key: 'link',    label: '🔗',  title: '超链接',     action: mode === 'source' ? cmdHyperlink : htmlHyperlink,   style: {} as React.CSSProperties },
+  { key: 'image',   label: '🖼',  title: '插入图片',    action: mode === 'source' ? cmdImage : htmlImage,           style: {} as React.CSSProperties },
+  { key: 'clear',   label: '⌫',   title: '清除格式',    action: mode === 'source' ? cmdClearFormat : htmlClearFormat, style: { fontSize: '14px' } as React.CSSProperties },
 ]
 
 const makeParagraphTypes = (mode: Mode) => {
