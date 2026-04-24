@@ -11,7 +11,7 @@ import {
   moveNode as moveNodeInTree,
 } from '../lib/fileTreeUtils'
 import { loadSettings, saveSettings } from '../lib/settingsStorage'
-import { isTauri, writeFileText, createDir, moveToTrash, renamePath } from '../lib/filesystem'
+import { isTauri, writeFileText, createDir, moveToTrash, renamePath, readFileText } from '../lib/filesystem'
 
 // Start with a fresh, empty editor on every launch (like Notepad).
 // Past files live in "Recent Files" history, and — in Tauri — on disk.
@@ -61,8 +61,62 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setActiveFile: (name, content) => {
-    set({ activeFile: name, doc: content })
+    set({ activeFile: name, doc: content, lastSavedDoc: content })
     if (name) get().addRecentFile(name)
+  },
+
+  /**
+   * Open a file by its tree path. If the node's content is already cached
+   * in-memory (sample files, recently edited), uses it directly; otherwise
+   * lazy-reads from disk via `fileStoragePath + path`. Essential because
+   * `readDirTree` populates the tree without reading file contents — without
+   * this, clicking a file from disk does nothing.
+   */
+  openFileByPath: async (path) => {
+    const { files, settings } = get()
+    // Walk the tree to find the node
+    const findNode = (tree: typeof files, segs: string[]): typeof files[0] | null => {
+      let current: typeof files = tree
+      let node: typeof files[0] | null = null
+      for (const seg of segs) {
+        node = current.find((n) => n.name === seg) ?? null
+        if (!node) return null
+        if (node.children) current = node.children
+      }
+      return node
+    }
+    const node = findNode(files, path)
+    if (!node || node.type !== 'file') return
+
+    // In-memory cache hit
+    if (node.content != null) {
+      set({ activeFile: node.name, doc: node.content, lastSavedDoc: node.content })
+      get().addRecentFile(node.name)
+      return
+    }
+
+    // Cache miss: read from disk (Tauri only). Requires a configured root.
+    if (!isTauri() || !settings.fileStoragePath) {
+      // Browser fallback: activate with empty content so at least the editor clears
+      set({ activeFile: node.name, doc: '', lastSavedDoc: '' })
+      get().addRecentFile(node.name)
+      return
+    }
+    const root = settings.fileStoragePath.replace(/[\\/]+$/, '')
+    const fullPath = [root, ...path].join('/')
+    try {
+      const content = await readFileText(fullPath)
+      set({
+        activeFile: node.name,
+        doc: content,
+        lastSavedDoc: content,
+        // Cache it into the tree so next click is instant
+        files: updateContentByName(get().files, node.name, content),
+      })
+      get().addRecentFile(node.name)
+    } catch (err) {
+      console.error('Failed to read file from disk:', fullPath, err)
+    }
   },
 
   toggleFocusMode: () =>

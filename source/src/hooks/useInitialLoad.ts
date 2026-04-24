@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../stores/useAppStore'
-import { isTauri, readDirTree, pathExists, readFileText } from '../lib/filesystem'
-import { defaultDoc } from '../stores/defaultDoc'
+import { isTauri, readDirTree, pathExists } from '../lib/filesystem'
 
 /**
  * On app start, if a `fileStoragePath` is configured in settings and the
@@ -10,6 +9,11 @@ import { defaultDoc } from '../stores/defaultDoc'
  *
  * This ensures the sidebar reflects the user's real storage folder rather
  * than a stale in-memory tree.
+ *
+ * Fresh-launch behavior (like Notepad): the editor stays blank until the
+ * user clicks a file in the sidebar. We do NOT auto-open the first file,
+ * because that gives the impression the editor is "stuck on the previous
+ * file" when the real file contents haven't loaded yet.
  *
  * Runs once on mount AND whenever `fileStoragePath` changes in settings.
  */
@@ -29,38 +33,9 @@ export function useInitialLoad() {
         const tree = await readDirTree(fileStoragePath)
         if (cancelled) return
 
-        // Replace file tree with disk contents. If there's an activeFile
-        // that still exists in the tree, read its content; otherwise fall
-        // back to the welcome doc.
-        const findFirstFile = (nodes: typeof tree): { name: string; path: string[] } | null => {
-          for (const n of nodes) {
-            if (n.type === 'file') return { name: n.name, path: [n.name] }
-            if (n.type === 'folder' && n.children) {
-              const inner = findFirstFile(n.children)
-              if (inner) return { name: inner.name, path: [n.name, ...inner.path] }
-            }
-          }
-          return null
-        }
-
-        const first = findFirstFile(tree)
-        if (first) {
-          const fullPath = [fileStoragePath, ...first.path].join('/')
-          const content = await readFileText(fullPath)
-          if (cancelled) return
-          useAppStore.setState({
-            files: tree,
-            activeFile: first.name,
-            doc: content,
-          })
-        } else {
-          // Empty directory — keep welcome doc
-          useAppStore.setState({
-            files: tree,
-            activeFile: '',
-            doc: defaultDoc,
-          })
-        }
+        // Populate the sidebar with what's on disk, but leave the editor
+        // blank — user picks which file to open.
+        useAppStore.setState({ files: tree })
       } catch (err) {
         console.error('Failed to load file tree from fileStoragePath:', err)
       }

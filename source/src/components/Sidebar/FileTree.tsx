@@ -61,7 +61,7 @@ interface FileTreeItemProps {
   depth: number
   path: string[]
   activeFile: string
-  onFileClick: (name: string, content: string, path: string[], e: React.MouseEvent) => void
+  onFileClick: (path: string[], e: React.MouseEvent) => void
   onContext: (e: React.MouseEvent, path: string[], type: 'file' | 'folder') => void
   editingPath: string[] | null
   onRename: (path: string[], newName: string) => void
@@ -226,7 +226,8 @@ function FileTreeItem({
           onSelectToggle(path, true)
           return
         }
-        if (node.content != null) onFileClick(node.name, node.content, path, e)
+        // Always dispatch — store will lazy-read from disk if content missing.
+        onFileClick(path, e)
       }}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -253,7 +254,7 @@ export function FileTree({ filter = '' }: { filter?: string }) {
   const { t } = useLocale()
   const activeFile = useAppStore((s) => s.activeFile)
   const files = useAppStore((s) => s.files)
-  const setActiveFile = useAppStore((s) => s.setActiveFile)
+  const openFileByPath = useAppStore((s) => s.openFileByPath)
   const createFile = useAppStore((s) => s.createFile)
   const createFolder = useAppStore((s) => s.createFolder)
   const deleteNode = useAppStore((s) => s.deleteNode)
@@ -270,11 +271,11 @@ export function FileTree({ filter = '' }: { filter?: string }) {
   const setEditingPath = useAppStore((s) => s.setEditingPath)
 
   const handleFileClick = useCallback(
-    (name: string, content: string) => {
+    (path: string[]) => {
       clearSelectedPaths()
-      setActiveFile(name, content)
+      void openFileByPath(path)
     },
-    [setActiveFile, clearSelectedPaths]
+    [openFileByPath, clearSelectedPaths]
   )
 
   const handleContext = useCallback(

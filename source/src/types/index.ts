@@ -38,6 +38,10 @@ export interface AppState {
   setEditorMode: (mode: EditorMode) => void
   setDoc: (content: string) => void
   setActiveFile: (name: string, content: string) => void
+  /** Open a file by its full path in the tree. Lazy-reads from disk when
+   *  the node's content isn't cached. Required because `readDirTree` scans
+   *  directories without reading file bodies. */
+  openFileByPath: (path: string[]) => Promise<void>
   toggleFocusMode: () => void
   toggleTypewriterMode: () => void
   zoomIn: () => void
