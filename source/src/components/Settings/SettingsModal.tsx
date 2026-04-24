@@ -16,7 +16,7 @@ export function SettingsModal() {
 
   const showBrowse = isTauri()
 
-  const browsePath = async (key: 'fileStoragePath' | 'downloadPath' | 'cachePath') => {
+  const browsePath = async (key: 'fileStoragePath' | 'downloadPath') => {
     const dir = await pickFolder()
     if (dir) setSettings({ [key]: dir })
   }
@@ -97,24 +97,8 @@ export function SettingsModal() {
           <p className={styles.hint}>{t('settings.downloadPathHint')}</p>
         </div>
 
-        <div className={styles.rowStack}>
-          <label className={styles.label}>{t('settings.cachePath')}</label>
-          <div className={styles.pathRow}>
-            <input
-              className={styles.input}
-              type="text"
-              placeholder="AppData/Local/Shymd/cache"
-              value={settings.cachePath}
-              onChange={(e) => setSettings({ cachePath: e.target.value })}
-            />
-            {showBrowse && (
-              <button className={styles.browseBtn} onClick={() => browsePath('cachePath')}>
-                {t('settings.browse')}
-              </button>
-            )}
-          </div>
-          <p className={styles.hint}>{t('settings.cachePathHint')}</p>
-        </div>
+        {/* Cache path is not yet used anywhere in the codebase — hidden
+            until we wire up image cache / plugin cache. */}
       </div>
 
       <div className={styles.section}>

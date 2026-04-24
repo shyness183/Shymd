@@ -24,7 +24,20 @@ export interface AppState {
   activeTab: 'files' | 'outline'
   editorMode: EditorMode
   doc: string
+  /** Basename of the active file, for display in status bar / title bar.
+   *  '' when nothing is open. NOTE: may be ambiguous when two files share
+   *  a name; use `activeFilePath` for disk/tree ops. */
   activeFile: string
+  /** Tree path of the active file relative to the workspace root.
+   *  Empty array means: no file open, OR the file lives outside the
+   *  workspace (see `activeAbsolutePath`). This is the SOURCE OF TRUTH
+   *  for everything that walks the tree (setDoc, rename, delete, move). */
+  activeFilePath: string[]
+  /** Absolute disk path of the active file. Used for all disk writes so
+   *  that files opened via "Set as default app" / "Open File…" outside
+   *  the workspace still save to the right place. Null for browser mode
+   *  or purely in-memory files. */
+  activeAbsolutePath: string | null
   focusMode: boolean
   typewriterMode: boolean
   zoom: number
@@ -37,11 +50,17 @@ export interface AppState {
   setActiveTab: (tab: 'files' | 'outline') => void
   setEditorMode: (mode: EditorMode) => void
   setDoc: (content: string) => void
-  setActiveFile: (name: string, content: string) => void
+  /** Activate a file that's purely in-memory (e.g. the welcome doc or a
+   *  browser-mode upload). Prefer `openFileByPath` for workspace files. */
+  setActiveFile: (name: string, content: string, path?: string[], absolutePath?: string | null) => void
   /** Open a file by its full path in the tree. Lazy-reads from disk when
    *  the node's content isn't cached. Required because `readDirTree` scans
    *  directories without reading file bodies. */
   openFileByPath: (path: string[]) => Promise<void>
+  /** Open any file by absolute disk path (used by "Set as default app"
+   *  and "Open File…" dialog). If the path is inside the workspace,
+   *  delegates to `openFileByPath`; otherwise opens standalone. */
+  openFileByAbsolutePath: (absolutePath: string) => Promise<void>
   toggleFocusMode: () => void
   toggleTypewriterMode: () => void
   zoomIn: () => void
@@ -56,7 +75,6 @@ export interface AppState {
   deleteNode: (path: string[], options?: { keepOnDisk?: boolean }) => void
   renameNode: (path: string[], newName: string) => void
   moveNode: (sourcePath: string[], destFolderPath: string[]) => void
-  updateFileContent: (name: string, content: string) => void
 
   settings: AppSettings
   settingsOpen: boolean
@@ -73,9 +91,11 @@ export interface AppState {
   tablePickerOpen: boolean
   setTablePickerOpen: (open: boolean) => void
 
-  recentFiles: string[]
-  addRecentFile: (name: string) => void
-  removeRecentFile: (name: string) => void
+  /** Most-recently opened files. Each entry has a display name and the
+   *  path info needed to re-open it unambiguously. */
+  recentFiles: RecentFileEntry[]
+  addRecentFile: (entry: RecentFileEntry) => void
+  removeRecentFile: (entry: RecentFileEntry) => void
   clearRecentFiles: () => void
 
   editingPath: string[] | null
@@ -94,6 +114,16 @@ export interface AppState {
   /** Remove all selected nodes from the sidebar. By default keeps files on
    *  disk; pass `{ alsoDeleteOnDisk: true }` to permanently delete them too. */
   deleteSelectedFromTree: (options?: { alsoDeleteOnDisk?: boolean }) => void
+}
+
+export interface RecentFileEntry {
+  /** Display name (basename). */
+  name: string
+  /** Tree path (empty when the file lives outside the workspace). */
+  path: string[]
+  /** Absolute disk path. Always populated in Tauri so we can reopen
+   *  files regardless of whether the workspace root has changed. */
+  absolutePath?: string
 }
 
 export type FindMode = 'find' | 'replace'

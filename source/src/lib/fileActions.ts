@@ -1,16 +1,16 @@
 import { useAppStore } from '../stores/useAppStore'
 import { md } from './markdown'
-import { insertNode, uniqueName } from './fileTreeUtils'
+import { uniqueName } from './fileTreeUtils'
 import {
   isTauri,
   pickMarkdownFile,
   pickFolder,
   saveFileDialog,
-  readFileText,
   readDirTree,
   writeFileText,
   joinPath,
 } from './filesystem'
+import { showToast } from '../components/Toast/Toast'
 
 // Trigger a browser download
 function downloadBlob(filename: string, blob: Blob) {
@@ -25,14 +25,30 @@ function downloadBlob(filename: string, blob: Blob) {
 }
 
 export async function saveMarkdown() {
-  const { doc, activeFile, settings } = useAppStore.getState()
+  const { doc, activeFile, activeAbsolutePath, settings } = useAppStore.getState()
   const name = activeFile || 'untitled.md'
   const filename = name.endsWith('.md') ? name : name + '.md'
 
   if (isTauri()) {
     const dialog = await import('@tauri-apps/plugin-dialog')
+
+    // If we know the absolute path (opened file), just write to it.
+    if (activeAbsolutePath) {
+      try {
+        await writeFileText(activeAbsolutePath, doc)
+        useAppStore.getState().markSaved()
+        return
+      } catch (err) {
+        await dialog.message(
+          `保存失败：${err instanceof Error ? err.message : String(err)}`,
+          { title: 'Shymd', kind: 'error' },
+        )
+        return
+      }
+    }
+
+    // No absolute path — fall back to writing under the workspace.
     if (!settings.fileStoragePath) {
-      // Path not configured — prompt user, then open settings
       await dialog.message(
         '您还未配置文件存储路径，请在偏好设置中配置后再保存。',
         { title: 'Shymd', kind: 'warning' },
@@ -71,6 +87,8 @@ export async function saveMarkdownAs() {
       if (!path) return
       const finalPath = path.endsWith('.md') ? path : path + '.md'
       await writeFileText(finalPath, doc)
+      // Re-open the saved file so subsequent edits autosave to the new path.
+      await useAppStore.getState().openFileByAbsolutePath(finalPath)
       useAppStore.getState().markSaved()
       return
     } catch (err) {
@@ -139,22 +157,10 @@ export async function openMarkdown() {
   if (isTauri()) {
     const filePath = await pickMarkdownFile()
     if (!filePath) return
-    const text = await readFileText(filePath)
-    // Extract filename from path
-    const name = filePath.split(/[/\\]/).pop() || 'untitled.md'
-
-    const state = useAppStore.getState()
-    const finalName = uniqueName(state.files, name)
-    const nextFiles = insertNode(state.files, [], {
-      name: finalName,
-      type: 'file',
-      content: text,
-    })
-    useAppStore.setState({
-      files: nextFiles,
-      activeFile: finalName,
-      doc: text,
-    })
+    // Use the new absolute-path opener: if the file is inside the
+    // workspace, the sidebar highlights it; otherwise it opens standalone
+    // and autosave writes back to wherever it came from.
+    await useAppStore.getState().openFileByAbsolutePath(filePath)
     return
   }
 
@@ -167,18 +173,8 @@ export async function openMarkdown() {
     if (!file) return
     const text = await file.text()
     const state = useAppStore.getState()
-
-    const finalName = uniqueName(state.files, file.name)
-    const nextFiles = insertNode(state.files, [], {
-      name: finalName,
-      type: 'file',
-      content: text,
-    })
-    useAppStore.setState({
-      files: nextFiles,
-      activeFile: finalName,
-      doc: text,
-    })
+    // Browser has no real filesystem — fake it as an in-memory entry.
+    state.setActiveFile(file.name, text, [file.name])
   }
   input.click()
 }
@@ -190,13 +186,19 @@ export async function openFolder() {
   const dirPath = await pickFolder()
   if (!dirPath) return
 
-  const tree = await readDirTree(dirPath)
-  const folderName = dirPath.split(/[/\\]/).pop() || 'folder'
-
-  useAppStore.setState({
-    files: [{ name: folderName, type: 'folder', children: tree }],
-    activeFile: '',
-    doc: '',
-  })
-  useAppStore.getState().setSettings({ fileStoragePath: dirPath })
+  try {
+    const tree = await readDirTree(dirPath)
+    useAppStore.setState({
+      files: tree,
+      activeFile: '',
+      activeFilePath: [],
+      activeAbsolutePath: null,
+      doc: '',
+      lastSavedDoc: '',
+    })
+    useAppStore.getState().setSettings({ fileStoragePath: dirPath })
+  } catch (err) {
+    console.error('Failed to open folder:', err)
+    showToast('无法读取所选文件夹', 'error')
+  }
 }

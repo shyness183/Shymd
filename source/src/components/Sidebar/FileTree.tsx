@@ -60,7 +60,7 @@ interface FileTreeItemProps {
   node: FileNode
   depth: number
   path: string[]
-  activeFile: string
+  activeFilePath: string[]
   onFileClick: (path: string[], e: React.MouseEvent) => void
   onContext: (e: React.MouseEvent, path: string[], type: 'file' | 'folder') => void
   editingPath: string[] | null
@@ -92,7 +92,7 @@ function FileTreeItem({
   node,
   depth,
   path,
-  activeFile,
+  activeFilePath,
   onFileClick,
   onContext,
   editingPath,
@@ -109,6 +109,7 @@ function FileTreeItem({
   const isEditing = pathsEqual(editingPath, path)
   const pathKey = path.join('/')
   const isSelected = selectedPaths.some((p) => p.join('/') === pathKey)
+  const isActive = activeFilePath.length === path.length && activeFilePath.every((s, i) => s === path[i])
 
   if (!matchesFilter(node, filter)) return null
 
@@ -198,7 +199,7 @@ function FileTreeItem({
               node={child}
               depth={depth + 1}
               path={[...path, child.name]}
-              activeFile={activeFile}
+              activeFilePath={activeFilePath}
               onFileClick={onFileClick}
               onContext={onContext}
               editingPath={editingPath}
@@ -216,7 +217,7 @@ function FileTreeItem({
 
   return (
     <div
-      className={`${styles.item} ${activeFile === node.name ? styles.itemActive : ''}${isSelected ? ' ' + styles.itemSelected : ''}`}
+      className={`${styles.item} ${isActive ? styles.itemActive : ''}${isSelected ? ' ' + styles.itemSelected : ''}`}
       style={{ paddingLeft: 12 + depth * 16 }}
       draggable
       onDragStart={onDragStart}
@@ -252,7 +253,7 @@ function FileTreeItem({
 // ─── FileTree root ───────────────────────────────────────────────
 export function FileTree({ filter = '' }: { filter?: string }) {
   const { t } = useLocale()
-  const activeFile = useAppStore((s) => s.activeFile)
+  const activeFilePath = useAppStore((s) => s.activeFilePath)
   const files = useAppStore((s) => s.files)
   const openFileByPath = useAppStore((s) => s.openFileByPath)
   const createFile = useAppStore((s) => s.createFile)
@@ -490,7 +491,7 @@ export function FileTree({ filter = '' }: { filter?: string }) {
           node={node}
           depth={0}
           path={[node.name]}
-          activeFile={activeFile}
+          activeFilePath={activeFilePath}
           onFileClick={handleFileClick}
           onContext={handleContext}
           editingPath={editingPath}

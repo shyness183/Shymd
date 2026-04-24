@@ -37,7 +37,8 @@ export function MenuBar() {
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen)
   const setHelpModal = useAppStore((s) => s.setHelpModal)
   const recentFiles = useAppStore((s) => s.recentFiles)
-  const setActiveFile = useAppStore((s) => s.setActiveFile)
+  const openFileByPath = useAppStore((s) => s.openFileByPath)
+  const openFileByAbsolutePath = useAppStore((s) => s.openFileByAbsolutePath)
   const removeRecentFile = useAppStore((s) => s.removeRecentFile)
   const clearRecentFiles = useAppStore((s) => s.clearRecentFiles)
 
@@ -53,28 +54,22 @@ export function MenuBar() {
     else if (isSource()) cmdHeading(level)
   }
 
-  const openRecentFile = (name: string) => {
-    // Find file content in the tree
-    const findContent = (nodes: typeof useAppStore.getState extends () => infer S ? S extends { files: infer F } ? F : never : never, target: string): string | undefined => {
-      for (const n of nodes as any[]) {
-        if (n.type === 'file' && n.name === target) return n.content ?? ''
-        if (n.type === 'folder' && n.children) {
-          const found = findContent(n.children, target)
-          if (found !== undefined) return found
-        }
-      }
-      return undefined
+  const openRecentFile = (entry: typeof recentFiles[number]) => {
+    // Absolute path is unambiguous — prefer it over tree-path lookup so
+    // files opened outside the current workspace still open.
+    if (entry.absolutePath) {
+      void openFileByAbsolutePath(entry.absolutePath)
+    } else if (entry.path.length > 0) {
+      void openFileByPath(entry.path)
     }
-    const content = findContent(useAppStore.getState().files, name)
-    if (content !== undefined) setActiveFile(name, content)
   }
 
   const recentItems: MenuItem[] = recentFiles.length > 0
     ? [
-        ...recentFiles.map((name) => ({
-          label: name,
-          onClick: () => openRecentFile(name),
-          onRemove: () => removeRecentFile(name),
+        ...recentFiles.map((entry) => ({
+          label: entry.name,
+          onClick: () => openRecentFile(entry),
+          onRemove: () => removeRecentFile(entry),
         })),
         { separator: true, label: '' } as MenuItem,
         { label: t('menu.file.clearRecent'), onClick: clearRecentFiles },

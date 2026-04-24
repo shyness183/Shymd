@@ -74,7 +74,8 @@ export function renameNodeInTree(
   return clone
 }
 
-/** Update file content by walking the entire tree to find a file by name. */
+/** Update file content by walking the entire tree to find a file by name.
+ *  DEPRECATED — prefer `updateContentByPath` which is unambiguous with duplicate names. */
 export function updateContentByName(
   tree: FileNode[],
   fileName: string,
@@ -91,6 +92,45 @@ export function updateContentByName(
     if (node.children) stack.push(...node.children)
   }
   return clone
+}
+
+/** Update file content at an exact path. Safe against duplicate filenames. */
+export function updateContentByPath(
+  tree: FileNode[],
+  path: string[],
+  content: string,
+): FileNode[] {
+  if (path.length === 0) return tree
+  const clone = cloneTree(tree)
+  const parentPath = path.slice(0, -1)
+  const name = path[path.length - 1]
+  const parent = findChildren(clone, parentPath)
+  if (!parent) return clone
+  const node = parent.find((n) => n.name === name && n.type === 'file')
+  if (node) node.content = content
+  return clone
+}
+
+/** Find a node at an exact path. Returns null if not found. */
+export function findNodeByPath(
+  tree: FileNode[],
+  path: string[],
+): FileNode | null {
+  if (path.length === 0) return null
+  let current: FileNode[] = tree
+  let node: FileNode | null = null
+  for (const seg of path) {
+    node = current.find((n) => n.name === seg) ?? null
+    if (!node) return null
+    if (node.children) current = node.children
+  }
+  return node
+}
+
+/** True when `prefix` is equal to or a parent of `path`. */
+export function pathIsPrefix(prefix: string[], path: string[]): boolean {
+  if (prefix.length > path.length) return false
+  return prefix.every((s, i) => s === path[i])
 }
 
 /**

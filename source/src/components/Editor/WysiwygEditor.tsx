@@ -113,19 +113,28 @@ turndown.addRule('frontMatter', {
 export function WysiwygEditor() {
   const doc = useAppStore((s) => s.doc)
   const setDoc = useAppStore((s) => s.setDoc)
-  const activeFile = useAppStore((s) => s.activeFile)
+  const activeFilePath = useAppStore((s) => s.activeFilePath)
+  const activeFileKey = activeFilePath.join('/')
   const rootRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<number | null>(null)
 
-  // Initial render & on activeFile change — rebuild HTML from markdown
+  // Initial render & on file change — rebuild HTML from markdown and
+  // scroll to the top so the new file starts from its header.
   useEffect(() => {
     const el = rootRef.current
     if (!el) return
     el.innerHTML = md.render(doc)
     injectTOC(el)
     renderMermaidBlocks(el)
+    // Scroll the editor and its scrolling ancestor back to the top.
+    el.scrollTop = 0
+    let parent: HTMLElement | null = el.parentElement
+    while (parent) {
+      parent.scrollTop = 0
+      parent = parent.parentElement
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFile])
+  }, [activeFileKey])
 
   // Register root for format commands
   useEffect(() => {

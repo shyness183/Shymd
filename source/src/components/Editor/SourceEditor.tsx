@@ -100,7 +100,33 @@ export function SourceEditor() {
   const viewRef = useRef<EditorView | null>(null)
   const setDoc = useAppStore((s) => s.setDoc)
   const theme = useAppStore((s) => s.theme)
-  const activeFile = useAppStore((s) => s.activeFile)
+  const activeFilePath = useAppStore((s) => s.activeFilePath)
+  const activeFileKey = activeFilePath.join('/')
+
+  // Centralised extension list so both the initial mount and file-switch
+  // rebuilds use the same configuration.
+  const buildExtensions = (currentTheme: 'light' | 'dark' | string) => [
+    lineNumbers(),
+    highlightActiveLine(),
+    highlightActiveLineGutter(),
+    drawSelection(),
+    rectangularSelection(),
+    indentOnInput(),
+    bracketMatching(),
+    foldGutter(),
+    highlightSelectionMatches(),
+    history(),
+    markdown({ base: markdownLanguage, codeLanguages: languages }),
+    listContinuation,
+    keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+    themeCompartment.of(currentTheme === 'dark' ? darkTheme : lightTheme),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        setDoc(update.state.doc.toString())
+      }
+    }),
+    EditorView.lineWrapping,
+  ]
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -108,28 +134,7 @@ export function SourceEditor() {
     const currentDoc = useAppStore.getState().doc
     const state = EditorState.create({
       doc: currentDoc,
-      extensions: [
-        lineNumbers(),
-        highlightActiveLine(),
-        highlightActiveLineGutter(),
-        drawSelection(),
-        rectangularSelection(),
-        indentOnInput(),
-        bracketMatching(),
-        foldGutter(),
-        highlightSelectionMatches(),
-        history(),
-        markdown({ base: markdownLanguage, codeLanguages: languages }),
-        listContinuation,
-        keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
-        themeCompartment.of(theme === 'dark' ? darkTheme : lightTheme),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            setDoc(update.state.doc.toString())
-          }
-        }),
-        EditorView.lineWrapping,
-      ],
+      extensions: buildExtensions(theme),
     })
 
     const view = new EditorView({ state, parent: containerRef.current })
@@ -144,18 +149,25 @@ export function SourceEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Sync doc when file switches
+  // Sync doc when file switches. Rebuild the entire EditorState so the
+  // undo/redo history from the previous file doesn't leak into the new
+  // one — otherwise Ctrl+Z could revert the new file into the old file's
+  // content. Also resets the scroll position to the top of the new doc.
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     const newDoc = useAppStore.getState().doc
     const currentDoc = view.state.doc.toString()
-    if (currentDoc !== newDoc) {
-      view.dispatch({
-        changes: { from: 0, to: currentDoc.length, insert: newDoc },
-      })
-    }
-  }, [activeFile])
+    if (currentDoc === newDoc) return
+    const fresh = EditorState.create({
+      doc: newDoc,
+      extensions: buildExtensions(useAppStore.getState().theme),
+    })
+    view.setState(fresh)
+    // Scroll to the top of the new document.
+    view.scrollDOM.scrollTop = 0
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFileKey])
 
   useEffect(() => {
     const view = viewRef.current

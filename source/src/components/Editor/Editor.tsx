@@ -80,7 +80,10 @@ export function Editor() {
     useAppStore.setState({
       files: nextFiles,
       activeFile: lastName,
+      activeFilePath: [lastName],
+      activeAbsolutePath: null,
       doc: lastText,
+      lastSavedDoc: lastText,
     })
   }
 

@@ -15,6 +15,8 @@ import { FindReplacePanel } from './components/FindReplace/FindReplacePanel'
 import { TablePicker } from './components/TablePicker/TablePicker'
 import { LinkDialog } from './components/LinkDialog/LinkDialog'
 import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog/ConfirmDeleteDialog'
+import { ToastHost } from './components/Toast/Toast'
+import { useLaunchFile } from './hooks/useLaunchFile'
 import styles from './App.module.css'
 
 export default function App() {
@@ -24,6 +26,7 @@ export default function App() {
   useTypewriter()
   useWindowState()
   useInitialLoad()
+  useLaunchFile()
 
   const sidebarVisible = useAppStore((s) => s.sidebarVisible)
   const sidebarWidth = useAppStore((s) => s.sidebarWidth)
@@ -57,6 +60,7 @@ export default function App() {
       <TablePicker />
       <LinkDialog />
       <ConfirmDeleteDialog />
+      <ToastHost />
     </>
   )
 }

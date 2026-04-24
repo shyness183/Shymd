@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../stores/useAppStore'
 import { isTauri, readDirTree, pathExists } from '../lib/filesystem'
+import { showToast } from '../components/Toast/Toast'
 
 /**
  * On app start, if a `fileStoragePath` is configured in settings and the
@@ -28,7 +29,14 @@ export function useInitialLoad() {
     ;(async () => {
       try {
         const exists = await pathExists(fileStoragePath)
-        if (!exists || cancelled) return
+        if (cancelled) return
+        if (!exists) {
+          // Visible feedback — otherwise the user sees an empty sidebar
+          // and thinks the folder is genuinely empty.
+          showToast(`文件存储路径不存在：${fileStoragePath}`, 'warn', 5000)
+          useAppStore.setState({ files: [] })
+          return
+        }
 
         const tree = await readDirTree(fileStoragePath)
         if (cancelled) return
@@ -38,6 +46,11 @@ export function useInitialLoad() {
         useAppStore.setState({ files: tree })
       } catch (err) {
         console.error('Failed to load file tree from fileStoragePath:', err)
+        showToast(
+          `无法读取文件夹，请检查权限：${fileStoragePath}`,
+          'error',
+          5000,
+        )
       }
     })()
 
