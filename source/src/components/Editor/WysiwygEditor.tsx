@@ -219,14 +219,37 @@ export function WysiwygEditor() {
       if (!sel || sel.rangeCount === 0) return
       const anchor = sel.anchorNode
       if (!anchor || !root.contains(anchor)) return
+      // Empty-paragraph "Type /" hint
       let node: Node | null = anchor
       while (node && node.parentNode !== root) node = node.parentNode
-      if (!node || node.nodeType !== Node.ELEMENT_NODE) return
-      const el = node as HTMLElement
-      if (!['P', 'DIV'].includes(el.tagName)) return
-      const text = el.textContent?.replace(/\u200B/g, '') ?? ''
-      const isEmptyBr = el.childNodes.length === 1 && el.firstChild?.nodeName === 'BR'
-      if (text === '' || isEmptyBr) el.setAttribute('data-cursor-hint', 'true')
+      if (node && node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement
+        if (['P', 'DIV'].includes(el.tagName)) {
+          const text = el.textContent?.replace(/\u200B/g, '') ?? ''
+          const isEmptyBr = el.childNodes.length === 1 && el.firstChild?.nodeName === 'BR'
+          if (text === '' || isEmptyBr) el.setAttribute('data-cursor-hint', 'true')
+        }
+      }
+
+      // ── Live Preview marker reveal (Obsidian-style) ──
+      // Tag every inline format wrapper that's an ancestor of the
+      // caret so CSS pseudo-elements render the matching markdown
+      // markers (** / * / __ / ~~ / == / ` / [text](url)). Cleared
+      // and re-applied each selectionchange tick.
+      const ACTIVE_TAGS = new Set(['STRONG','B','EM','I','U','S','DEL','MARK','CODE','A'])
+      root.querySelectorAll('[data-md-active]').forEach((e) =>
+        e.removeAttribute('data-md-active'),
+      )
+      let cur: Node | null = anchor
+      while (cur && cur !== root) {
+        if (cur.nodeType === Node.ELEMENT_NODE) {
+          const tag = (cur as HTMLElement).tagName
+          if (ACTIVE_TAGS.has(tag)) {
+            (cur as HTMLElement).setAttribute('data-md-active', 'true')
+          }
+        }
+        cur = cur.parentNode
+      }
     }
     const scheduleHint = () => {
       cancelAnimationFrame(rafId)

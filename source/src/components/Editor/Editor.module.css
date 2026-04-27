@@ -80,6 +80,52 @@
   font-size: 0.95em;
 }
 
+/* ──────────────────────────────────────────────────────────────────
+   Live Preview — Obsidian-style syntax-marker reveal.
+
+   When the caret is inside an inline format wrapper (<strong>/<em>/
+   <u>/<del>/<mark>/<code>/<a>), WysiwygEditor adds `data-md-active`
+   to that wrapper. These pseudo-element rules render the matching
+   markdown source markers around the rendered content so the user
+   can see (and edit) the underlying syntax — exactly like Obsidian's
+   Live Preview mode.
+
+   Markers are non-interactive (pointer-events: none, user-select:
+   none), styled with --color-text-secondary so they look subdued
+   compared to the actual content. Scoped to `.wysiwyg.content` so
+   the Reading view never reveals markers. */
+.wysiwyg.content [data-md-active]::before,
+.wysiwyg.content [data-md-active]::after {
+  color: var(--color-text-secondary);
+  opacity: 0.65;
+  pointer-events: none;
+  user-select: none;
+  font-weight: normal;
+  font-style: normal;
+}
+.wysiwyg.content strong[data-md-active]::before,
+.wysiwyg.content strong[data-md-active]::after,
+.wysiwyg.content b[data-md-active]::before,
+.wysiwyg.content b[data-md-active]::after { content: '**'; }
+.wysiwyg.content em[data-md-active]::before,
+.wysiwyg.content em[data-md-active]::after,
+.wysiwyg.content i[data-md-active]::before,
+.wysiwyg.content i[data-md-active]::after { content: '*'; }
+.wysiwyg.content u[data-md-active]::before,
+.wysiwyg.content u[data-md-active]::after { content: '__'; }
+.wysiwyg.content s[data-md-active]::before,
+.wysiwyg.content s[data-md-active]::after,
+.wysiwyg.content del[data-md-active]::before,
+.wysiwyg.content del[data-md-active]::after { content: '~~'; }
+.wysiwyg.content mark[data-md-active]::before,
+.wysiwyg.content mark[data-md-active]::after { content: '=='; }
+.wysiwyg.content code[data-md-active]::before,
+.wysiwyg.content code[data-md-active]::after { content: '`'; }
+/* Anchor: `[text](url)` — the rendered text stays in the <a>'s body,
+   we add `[` before and `](url)` after using attr(href). */
+.wysiwyg.content a[data-md-active]::before { content: '['; }
+.wysiwyg.content a[data-md-active]::after { content: '](' attr(href) ')'; }
+
 .content ul,
 .content ol {
   padding-left: 1.5em;
