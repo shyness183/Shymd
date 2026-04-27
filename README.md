@@ -5,6 +5,8 @@
 
 ![Shymd 界面截图](assets/screenshot.png)
 
+![Shymd 界面截图](assets/screenshot01.png)
+
 * * *
 
 ## 这个软件能做什么
