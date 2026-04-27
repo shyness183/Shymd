@@ -232,20 +232,52 @@ export function WysiwygEditor() {
       }
 
       // ── Live Preview marker reveal (Obsidian-style) ──
-      // Tag every inline format wrapper that's an ancestor of the
-      // caret so CSS pseudo-elements render the matching markdown
-      // markers (** / * / __ / ~~ / == / ` / [text](url)). Cleared
-      // and re-applied each selectionchange tick.
-      const ACTIVE_TAGS = new Set(['STRONG','B','EM','I','U','S','DEL','MARK','CODE','A'])
-      root.querySelectorAll('[data-md-active]').forEach((e) =>
-        e.removeAttribute('data-md-active'),
-      )
+      // Insert real-DOM <span class="md-marker" contenteditable="false">
+      // children at the start and end of every inline format wrapper
+      // ancestor of the caret. Real DOM (instead of ::before/::after
+      // pseudo content) is required because pseudo elements with
+      // pointer-events:none + user-select:none break contentEditable
+      // caret rendering — the cursor literally disappears and typing
+      // fails.  contenteditable=false makes the markers atomic so the
+      // caret skips them.
+      // Markers are stripped before markdown serialization (see
+      // scheduleSave / external-change comparison below).
+      const TAG_MARKERS: Record<string, [string, string]> = {
+        STRONG: ['**', '**'], B: ['**', '**'],
+        EM: ['*', '*'], I: ['*', '*'],
+        U: ['__', '__'],
+        S: ['~~', '~~'], DEL: ['~~', '~~'],
+        MARK: ['==', '=='],
+        CODE: ['`', '`'],
+        // Anchor handled specially — closing form needs the href.
+        A: ['[', ']'],
+      }
+      // Strip every existing marker first (cheap — usually 0–4 spans).
+      root.querySelectorAll('span.md-marker').forEach((m) => m.remove())
+      // Walk ancestors and inject markers.
       let cur: Node | null = anchor
       while (cur && cur !== root) {
         if (cur.nodeType === Node.ELEMENT_NODE) {
-          const tag = (cur as HTMLElement).tagName
-          if (ACTIVE_TAGS.has(tag)) {
-            (cur as HTMLElement).setAttribute('data-md-active', 'true')
+          const el = cur as HTMLElement
+          const tag = el.tagName
+          const tpl = TAG_MARKERS[tag]
+          if (tpl) {
+            const [open, close] = tpl
+            const openSpan = document.createElement('span')
+            openSpan.className = 'md-marker'
+            openSpan.setAttribute('contenteditable', 'false')
+            openSpan.textContent = open
+            const closeSpan = document.createElement('span')
+            closeSpan.className = 'md-marker'
+            closeSpan.setAttribute('contenteditable', 'false')
+            // For <a>, append `(href)` to the closing marker.
+            if (tag === 'A') {
+              closeSpan.textContent = close + '(' + (el.getAttribute('href') ?? '') + ')'
+            } else {
+              closeSpan.textContent = close
+            }
+            el.insertBefore(openSpan, el.firstChild)
+            el.appendChild(closeSpan)
           }
         }
         cur = cur.parentNode
@@ -269,7 +301,9 @@ export function WysiwygEditor() {
   useEffect(() => {
     const el = rootRef.current
     if (!el) return
-    const current = turndown.turndown(el.innerHTML.replace(/​/g, '')).trim()
+    const cleanClone = el.cloneNode(true) as HTMLElement
+    cleanClone.querySelectorAll('span.md-marker').forEach((m) => m.remove())
+    const current = turndown.turndown(cleanClone.innerHTML.replace(/​/g, '')).trim()
     if (current.trim() !== doc.trim() && document.activeElement !== el) {
       el.innerHTML = md.render(doc)
       injectTOC(el)
@@ -278,15 +312,21 @@ export function WysiwygEditor() {
     }
   }, [doc, activeAbsolutePath])
 
-  // Debounced: convert contentEditable HTML back to markdown and save
+  // Debounced: convert contentEditable HTML back to markdown and save.
+  // Two pre-serialization rewrites:
+  //   - strip ZWSP caret-escape boundaries inserted by inline-format
+  //     commands (anti-inheritance, see placeCaretOutsideAfter)
+  //   - strip Live Preview marker spans (see selectionchange handler) —
+  //     they're transient UI hints, not real content.
   const scheduleSave = () => {
     if (timerRef.current) window.clearTimeout(timerRef.current)
     timerRef.current = window.setTimeout(() => {
       const el = rootRef.current
       if (!el) return
-      // Strip caret-escape ZWSPs (inserted by inline-format commands as
-      // anti-inheritance boundaries) before serializing to markdown.
-      const html = el.innerHTML.replace(/​/g, '')
+      // Clone so we can mutate without affecting the live editor DOM.
+      const clone = el.cloneNode(true) as HTMLElement
+      clone.querySelectorAll('span.md-marker').forEach((m) => m.remove())
+      const html = clone.innerHTML.replace(/​/g, '')
       const markdown = turndown.turndown(html)
       setDoc(markdown)
     }, 400)

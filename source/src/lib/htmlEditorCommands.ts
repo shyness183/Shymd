@@ -647,6 +647,9 @@ export function htmlClearFormat() {
   const startOffset = range.startOffset
 
   const frag = range.extractContents()
+  // Drop any Live Preview marker spans dragged into the fragment —
+  // they're transient UI hints, not real content.
+  frag.querySelectorAll && (frag as DocumentFragment).querySelectorAll('span.md-marker').forEach((m) => m.remove())
   stripIn(frag)
 
   // Re-insert at the original start point. After insert, normalize the

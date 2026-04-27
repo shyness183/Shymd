@@ -103,6 +103,13 @@ export function PopoverMenu({ items, x, y, onClose, className }: PopoverMenuProp
       className={`${styles.menu} ${className ?? ''}`}
       style={{ left: clampedX, top: clampedY, width: MENU_WIDTH }}
       onContextMenu={(e) => e.preventDefault()}
+      // CRITICAL: preventDefault on mousedown for the WHOLE menu surface
+      // so the contentEditable / CodeMirror selection in the editor
+      // SURVIVES the click. Without this the browser shifts focus to
+      // the clicked <button>, collapses the editor selection, and every
+      // command that requires a non-collapsed selection (clearFormat,
+      // bold, italic, highlight…) silently bails.
+      onMouseDown={(e) => e.preventDefault()}
     >
       {items.map((item, i) => {
         if (item.separator) return <div key={i} className={styles.separator} />
@@ -114,6 +121,7 @@ export function PopoverMenu({ items, x, y, onClose, className }: PopoverMenuProp
             className={`${styles.row}${active ? ' ' + styles.rowActive : ''}${item.disabled ? ' ' + styles.rowDisabled : ''}`}
             disabled={item.disabled}
             onMouseEnter={(e) => onRowMouseEnter(i, item, e)}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => runItem(item)}
           >
             <span className={styles.check}>{item.checked ? '✓' : item.icon ?? ''}</span>
