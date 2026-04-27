@@ -13,26 +13,18 @@
   <rect x="2" y="2" width="44" height="44" rx="11" fill="url(#shymd-bg)"/>
   <!-- Faint top highlight for a subtle "lit" feel -->
   <rect x="2" y="2" width="44" height="22" rx="11" fill="#ffffff" fill-opacity="0.08"/>
-  <!-- Stylised lowercase 's' — hand-drawn curve, symmetrical dip/rise -->
+  <!-- Centred lowercase 's' — symmetrical dip/rise curve -->
   <path
-    d="M30 17.5
-       C30 15.2 27.8 14 24.6 14
-       C21 14 18.8 15.6 18.8 18
-       C18.8 20.2 20.4 21.2 24 22
-       C28.1 22.9 30 24.2 30 26.8
-       C30 29.6 27.4 31 24 31
-       C20.6 31 18.2 29.6 18 27.2"
+    d="M33 19
+       C33 15.6 29.8 13.5 24 13.5
+       C18.4 13.5 15 15.8 15 19
+       C15 21.8 17 23.2 24 24.4
+       C31 25.6 33 27 33 29.8
+       C33 33 29.6 35 24 35
+       C18.4 35 15 33 15 29.6"
     fill="none"
     stroke="url(#shymd-mark)"
-    stroke-width="3"
-    stroke-linecap="round"
-    stroke-linejoin="round"/>
-  <!-- Small downward chevron — hints at ".md" / markdown file -->
-  <path
-    d="M20 34 L24 38 L28 34"
-    fill="none"
-    stroke="url(#shymd-mark)"
-    stroke-width="3"
+    stroke-width="3.6"
     stroke-linecap="round"
     stroke-linejoin="round"/>
 </svg>

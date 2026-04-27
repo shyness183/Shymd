@@ -9,7 +9,7 @@ import {
   replaceMatch,
   type FindMatch,
 } from '../../lib/findReplace'
-import { md } from '../../lib/markdown'
+import { md, resolveRelativeAssets } from '../../lib/markdown'
 import TurndownService from 'turndown'
 import styles from './FindReplacePanel.module.css'
 
@@ -132,6 +132,11 @@ export function FindReplacePanel() {
     // Re-render DOM for WYSIWYG to reflect new content, then recompute.
     if (editorMode === 'wysiwyg') {
       root.innerHTML = md.render(nextDoc)
+      // Re-resolve relative image paths against the open file's
+      // directory; otherwise inline `<img>` references go blank after a
+      // find/replace round.
+      const abs = useAppStore.getState().activeAbsolutePath
+      resolveRelativeAssets(root, abs)
     }
     setTimeout(() => recompute(false), 50)
     if (count > 0) {

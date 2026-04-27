@@ -181,6 +181,11 @@ export function MenuBar() {
     { label: t('menu.theme.morandi'), checked: theme === 'morandi', onClick: () => setTheme('morandi') },
     { label: t('menu.theme.eyeCare'), checked: theme === 'eye-care', onClick: () => setTheme('eye-care') },
     { separator: true, label: '' },
+    { label: t('menu.theme.monokai'), checked: theme === 'monokai', onClick: () => setTheme('monokai') },
+    { label: t('menu.theme.dracula'), checked: theme === 'dracula', onClick: () => setTheme('dracula') },
+    { label: t('menu.theme.solarizedLight'), checked: theme === 'solarized-light', onClick: () => setTheme('solarized-light') },
+    { label: t('menu.theme.oneDark'), checked: theme === 'one-dark', onClick: () => setTheme('one-dark') },
+    { separator: true, label: '' },
     { label: t('menu.theme.system'), checked: theme === 'system', onClick: () => setTheme('system') },
   ]
 

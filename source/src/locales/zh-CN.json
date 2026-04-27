@@ -41,6 +41,10 @@
   "menu.theme.dark": "暗色经典",
   "menu.theme.morandi": "莫兰迪",
   "menu.theme.eyeCare": "护眼绿",
+  "menu.theme.monokai": "Monokai",
+  "menu.theme.dracula": "Dracula",
+  "menu.theme.solarizedLight": "Solarized 米白",
+  "menu.theme.oneDark": "One Dark",
   "menu.theme.system": "跟随系统",
 
   "menu.file.exportHtml": "导出为 HTML",

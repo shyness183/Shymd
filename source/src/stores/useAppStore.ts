@@ -67,6 +67,11 @@ const initialActiveFile = isFirstRun ? '欢迎使用 Shymd.md' : ''
 const initialActivePath: string[] = isFirstRun ? ['欢迎使用 Shymd.md'] : []
 const initialDoc = isFirstRun ? defaultDoc : ''
 
+// Monotonically-increasing counter: each file-open call takes a snapshot;
+// if the counter has moved on by the time the async read finishes, the
+// result is stale and should be discarded.
+let _openFileSeq = 0
+
 /** Build an absolute disk path from the workspace root + tree path. */
 function absFromTreePath(root: string, path: string[]): string {
   const trimmed = root.replace(/[\\/]+$/, '')
@@ -144,6 +149,7 @@ export const useAppStore = create<AppState>((set, get) => ({
    */
   openFileByPath: async (path) => {
     if (path.length === 0) return
+    const seq = ++_openFileSeq
     const { files, settings } = get()
     const node = findNodeByPath(files, path)
     if (!node || node.type !== 'file') return
@@ -152,6 +158,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // In-memory cache hit (sample files, edited files)
     if (node.content != null) {
+      if (seq !== _openFileSeq) return
       set({
         activeFile: name,
         activeFilePath: path,
@@ -165,6 +172,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // Cache miss: read from disk (Tauri only). Browser can't recover.
     if (!isTauri() || !abs) {
+      if (seq !== _openFileSeq) return
       set({
         activeFile: name,
         activeFilePath: path,
@@ -177,6 +185,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     try {
       const content = await readFileText(abs)
+      if (seq !== _openFileSeq) return
       set({
         activeFile: name,
         activeFilePath: path,
@@ -187,6 +196,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       })
       get().addRecentFile({ name, path, absolutePath: abs })
     } catch (err) {
+      if (seq !== _openFileSeq) return
       console.error('Failed to read file from disk:', abs, err)
       showToast(`无法打开文件：${name}`, 'error')
     }
@@ -200,11 +210,12 @@ export const useAppStore = create<AppState>((set, get) => ({
    */
   openFileByAbsolutePath: async (absolutePath) => {
     if (!isTauri()) return
+    const seq = ++_openFileSeq
     const { settings } = get()
     const abs = normSlash(absolutePath)
     const root = settings.fileStoragePath ? normSlash(settings.fileStoragePath) : ''
 
-    // Inside workspace? Open via tree path.
+    // Inside workspace? Open via tree path (openFileByPath manages its own seq).
     if (root && abs.startsWith(root + '/')) {
       const rel = abs.slice(root.length + 1).split('/').filter(Boolean)
       if (rel.length > 0) {
@@ -216,6 +227,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // External file: read directly; no tree entry.
     try {
       const content = await readFileText(absolutePath)
+      if (seq !== _openFileSeq) return
       const name = abs.split('/').pop() || 'untitled.md'
       set({
         activeFile: name,
@@ -226,6 +238,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       })
       get().addRecentFile({ name, path: [], absolutePath })
     } catch (err) {
+      if (seq !== _openFileSeq) return
       console.error('Failed to read external file:', absolutePath, err)
       showToast(`无法打开文件：${absolutePath}`, 'error')
     }

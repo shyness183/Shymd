@@ -1,4 +1,7 @@
 import { useEffect } from 'react'
+import TurndownService from 'turndown'
+
+const _td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' })
 import { useAppStore } from '../stores/useAppStore'
 import {
   cmdHeading, cmdParagraph, cmdQuote, cmdCodeBlock, cmdMathBlock,
@@ -105,16 +108,14 @@ export function useKeyboard() {
         const doc = useAppStore.getState().doc
         const sel = window.getSelection()
         if (sel && !sel.isCollapsed && isWysiwygFocus()) {
-          // In WYSIWYG: convert selected HTML back to markdown
-          const TurndownService = (window as any).__turndown
-          if (TurndownService) {
-            const range = sel.getRangeAt(0)
-            const div = document.createElement('div')
-            div.appendChild(range.cloneContents())
-            // Simple approach: copy the full doc markdown for now
-          }
+          // Convert selected HTML to markdown
+          const range = sel.getRangeAt(0)
+          const div = document.createElement('div')
+          div.appendChild(range.cloneContents())
+          navigator.clipboard.writeText(_td.turndown(div.innerHTML))
+          return
         }
-        // Fallback: copy the full document markdown
+        // Source mode or no selection: copy full document markdown
         navigator.clipboard.writeText(doc)
         return
       }

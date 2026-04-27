@@ -14,7 +14,7 @@ import {
   htmlHighlight, htmlHyperlink, htmlHeading, htmlParagraph,
   htmlQuote, htmlUnorderedList, htmlOrderedList, htmlTaskList,
   htmlCodeBlock, htmlUnderline, htmlInlineMath, htmlImage, htmlClearFormat,
-  getCERoot, getActiveMark,
+  getCERoot, getActiveMark, getLastHighlightMark,
 } from '../../lib/htmlEditorCommands'
 import styles from './FloatingToolbar.module.css'
 
@@ -56,7 +56,7 @@ const makeFormatButtons = (mode: Mode) => [
   { key: 'code',    label: '</>', title: '行内代码',    action: mode === 'source' ? cmdInlineCode : htmlInlineCode, style: { fontFamily: 'var(--font-code, monospace)', fontSize: '11px', letterSpacing: '-0.5px' } as React.CSSProperties },
   { key: 'math',    label: '∑',   title: '行内数学',    action: mode === 'source' ? cmdInlineMath : htmlInlineMath, style: { fontFamily: 'KaTeX_Math, serif', fontStyle: 'italic' } as React.CSSProperties },
   { key: 'link',    label: '🔗',  title: '超链接',     action: mode === 'source' ? cmdHyperlink : htmlHyperlink,   style: {} as React.CSSProperties },
-  { key: 'image',   label: '🖼',  title: '插入图片',    action: mode === 'source' ? cmdImage : htmlImage,           style: {} as React.CSSProperties },
+  { key: 'image',   label: '▦',   title: '插入图片',    action: mode === 'source' ? cmdImage : htmlImage,           style: { fontSize: '14px' } as React.CSSProperties },
   { key: 'clear',   label: '⌫',   title: '清除格式',    action: mode === 'source' ? cmdClearFormat : htmlClearFormat, style: { fontSize: '14px' } as React.CSSProperties },
 ]
 
@@ -94,6 +94,11 @@ export function FloatingToolbar() {
   const [hlShade, setHlShade] = useState(30)          // 0-100
   const [hlHue, setHlHue] = useState(50)              // current selected hue
   const toolbarRef = useRef<HTMLDivElement>(null)
+  // Tracks the <mark> element being live-edited inside the picker so
+  // subsequent slider/swatch changes update its colour in place
+  // (htmlHighlight after the first call would no longer find it —
+  // the caret has moved to the ZWSP outside the wrapper).
+  const activeMarkRef = useRef<HTMLElement | null>(null)
 
   const closePopovers = () => {
     setShowParagraph(false)
@@ -180,14 +185,34 @@ export function FloatingToolbar() {
       setShowHighlight(false)
       setPos(null)
     } else {
+      // Reset the per-session mark ref every time the picker opens.
+      activeMarkRef.current = null
       setShowHighlight((v) => !v)
       setShowParagraph(false)
     }
   }
 
-  const applyColor = (hue: number, shade: number) => {
+  /**
+   * Live-apply highlight at (hue, shade). First call wraps the
+   * selection in a fresh <mark> via htmlHighlight; subsequent calls
+   * directly mutate the same mark's background so dragging the slider
+   * (or clicking another swatch) updates the colour without creating
+   * duplicate wrappers or losing the selection.
+   */
+  const liveApply = (hue: number, shade: number) => {
     const color = hlColor(hue, shade)
+    if (activeMarkRef.current && activeMarkRef.current.isConnected) {
+      activeMarkRef.current.style.background = color
+      return
+    }
     htmlHighlight(color)
+    activeMarkRef.current = getLastHighlightMark()
+  }
+
+  const applyColor = (hue: number, shade: number) => {
+    // Commit + close. Re-apply once in case nothing has been live-applied
+    // yet (e.g. user clicked Apply without touching the slider/swatches).
+    liveApply(hue, shade)
     setHlHue(hue)
     setHlShade(shade)
     setShowHighlight(false)
@@ -278,7 +303,11 @@ export function FloatingToolbar() {
                   title={c.name}
                   onMouseDown={(e) => {
                     e.preventDefault()
-                    applyColor(c.hue, hlShade)
+                    setHlHue(c.hue)
+                    // Live-apply: the user sees the colour change on the
+                    // selection immediately. They can keep clicking other
+                    // swatches or dragging the shade slider to fine-tune.
+                    liveApply(c.hue, hlShade)
                   }}
                 />
               ))}
@@ -292,6 +321,13 @@ export function FloatingToolbar() {
                 min={0}
                 max={100}
                 value={hlShade}
+                onInput={(e) => {
+                  const v = Number((e.target as HTMLInputElement).value)
+                  setHlShade(v)
+                  // Live-apply on every drag tick so the user sees the
+                  // depth change in real time on the selected text.
+                  liveApply(hlHue, v)
+                }}
                 onChange={(e) => setHlShade(Number(e.target.value))}
                 style={{
                   background: `linear-gradient(to right, ${hlColor(hlHue, 0)}, ${hlColor(hlHue, 100)})`,

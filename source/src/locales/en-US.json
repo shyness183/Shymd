@@ -41,6 +41,10 @@
   "menu.theme.dark": "Dark Classic",
   "menu.theme.morandi": "Morandi",
   "menu.theme.eyeCare": "Eye Care",
+  "menu.theme.monokai": "Monokai",
+  "menu.theme.dracula": "Dracula",
+  "menu.theme.solarizedLight": "Solarized Light",
+  "menu.theme.oneDark": "One Dark",
   "menu.theme.system": "Follow System",
 
   "menu.file.exportHtml": "Export as HTML",

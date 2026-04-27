@@ -213,9 +213,14 @@ export function SourceEditor() {
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
+    // Pick CM6's dark variant for any dark-leaning theme. The page-level
+    // CSS variables drive most of the chrome, but CM6's gutter / cursor /
+    // selection layer needs an explicit dark/light hint so it doesn't
+    // render a glaring white gutter on Monokai / Dracula / One Dark.
+    const darkThemes = new Set(['dark', 'monokai', 'dracula', 'one-dark'])
     view.dispatch({
       effects: themeCompartment.reconfigure(
-        theme === 'dark' ? darkTheme : lightTheme
+        darkThemes.has(theme) ? darkTheme : lightTheme
       ),
     })
   }, [theme])

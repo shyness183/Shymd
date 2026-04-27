@@ -74,6 +74,82 @@
   --color-scrollbar-hover: #777777;
 }
 
+/* ===== Monokai — VS Code 风格暖色暗主题 ===== */
+[data-theme="monokai"] {
+  --color-bg: #272822;
+  --color-sidebar-bg: #1E1F1C;
+  --color-menu-bg: #22231D;
+  --color-border: #3E3D32;
+  --color-text: #F8F8F2;
+  --color-heading: #FFFFFF;
+  --color-accent: #F92672;
+  --color-link: #66D9EF;
+  --color-code-bg: #1E1F1C;
+  --color-selection: rgba(249, 38, 114, 0.22);
+  --color-hover: rgba(255, 255, 255, 0.05);
+  --color-active: rgba(255, 255, 255, 0.08);
+  --color-text-secondary: #75715E;
+  --color-scrollbar: #4A4A40;
+  --color-scrollbar-hover: #6E6E5E;
+}
+
+/* ===== Dracula — 紫色调暗主题 ===== */
+[data-theme="dracula"] {
+  --color-bg: #282A36;
+  --color-sidebar-bg: #21222C;
+  --color-menu-bg: #2A2C3A;
+  --color-border: #44475A;
+  --color-text: #F8F8F2;
+  --color-heading: #FFFFFF;
+  --color-accent: #BD93F9;
+  --color-link: #8BE9FD;
+  --color-code-bg: #21222C;
+  --color-selection: rgba(189, 147, 249, 0.22);
+  --color-hover: rgba(255, 255, 255, 0.05);
+  --color-active: rgba(255, 255, 255, 0.08);
+  --color-text-secondary: #6272A4;
+  --color-scrollbar: #44475A;
+  --color-scrollbar-hover: #6272A4;
+}
+
+/* ===== Solarized Light — 米黄护眼亮主题 ===== */
+[data-theme="solarized-light"] {
+  --color-bg: #FDF6E3;
+  --color-sidebar-bg: #EEE8D5;
+  --color-menu-bg: #F4EFDC;
+  --color-border: #D6CFB7;
+  --color-text: #586E75;
+  --color-heading: #073642;
+  --color-accent: #B58900;
+  --color-link: #268BD2;
+  --color-code-bg: #EEE8D5;
+  --color-selection: rgba(181, 137, 0, 0.18);
+  --color-hover: rgba(0, 0, 0, 0.04);
+  --color-active: rgba(0, 0, 0, 0.07);
+  --color-text-secondary: #93A1A1;
+  --color-scrollbar: #C8C0A4;
+  --color-scrollbar-hover: #A8A084;
+}
+
+/* ===== One Dark — Atom / VS Code 经典暗主题 ===== */
+[data-theme="one-dark"] {
+  --color-bg: #282C34;
+  --color-sidebar-bg: #21252B;
+  --color-menu-bg: #2C313A;
+  --color-border: #3E4451;
+  --color-text: #ABB2BF;
+  --color-heading: #FFFFFF;
+  --color-accent: #61AFEF;
+  --color-link: #56B6C2;
+  --color-code-bg: #21252B;
+  --color-selection: rgba(97, 175, 239, 0.2);
+  --color-hover: rgba(255, 255, 255, 0.05);
+  --color-active: rgba(255, 255, 255, 0.08);
+  --color-text-secondary: #7F848E;
+  --color-scrollbar: #4B5263;
+  --color-scrollbar-hover: #6B7280;
+}
+
 /* ===== Layout Tokens — PDD 9.3 ===== */
 :root {
   --sidebar-width: 240px;

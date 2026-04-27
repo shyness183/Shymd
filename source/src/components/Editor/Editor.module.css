@@ -57,14 +57,24 @@
   outline: none;
 }
 
-/* "Type / to insert" hint — shown on empty paragraphs in WYSIWYG mode
-   while the editor has focus. Scoped to .wysiwyg so the ReadingView
-   (which shares .content) never shows a command prompt. Low opacity so
-   it doesn't compete visually with real content. */
-.wysiwyg.content:focus-within > p:empty::before {
+/* "Type /" hint — shown only on the empty paragraph where the cursor
+   currently sits (data-cursor-hint is set by WysiwygEditor via a
+   selectionchange listener). Scoped to .wysiwyg so ReadingView is unaffected.
+   `position: absolute` takes the pseudo-element out of inline flow so the
+   blinking caret stays at the natural offset 0 (left edge) and the "Type /"
+   hint floats to its right with a small gap. */
+.wysiwyg.content > p[data-cursor-hint],
+.wysiwyg.content > div[data-cursor-hint] {
+  position: relative;
+}
+.wysiwyg.content > p[data-cursor-hint]::before,
+.wysiwyg.content > div[data-cursor-hint]::before {
   content: "Type /";
-  color: var(--color-text-secondary, #999);
-  opacity: 0.35;
+  position: absolute;
+  left: 0.7em;
+  top: 0;
+  color: var(--color-text-secondary, #888);
+  opacity: 0.5;
   pointer-events: none;
   font-style: italic;
   font-size: 0.95em;

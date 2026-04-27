@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../stores/useAppStore'
 import { isTauri, writeFileText } from '../lib/filesystem'
+import { showToast } from '../components/Toast/Toast'
 
 /**
  * Autosave the active file to disk (Tauri only).
@@ -30,7 +31,10 @@ export function useAutosave() {
     timerRef.current = window.setTimeout(() => {
       writeFileText(activeAbsolutePath, doc)
         .then(() => useAppStore.getState().markSaved())
-        .catch((err) => console.error('Autosave to disk failed:', err))
+        .catch((err) => {
+          console.error('Autosave to disk failed:', err)
+          showToast('保存失败，请检查文件权限', 'error')
+        })
     }, Math.max(200, delay))
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current)

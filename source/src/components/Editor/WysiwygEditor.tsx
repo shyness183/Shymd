@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import TurndownService from 'turndown'
-import { md, renderMermaidBlocks, injectTOC } from '../../lib/markdown'
+import { md, renderMermaidBlocks, injectTOC, resolveRelativeAssets } from '../../lib/markdown'
 import { useAppStore } from '../../stores/useAppStore'
 import { setCERoot } from '../../lib/htmlEditorCommands'
 import styles from './Editor.module.css'
@@ -17,6 +17,15 @@ const turndown = new TurndownService({
 turndown.addRule('strikethrough', {
   filter: ['del', 's'] as any,
   replacement: (content) => `~~${content}~~`,
+})
+
+// Underline — markdown has no canonical syntax for underline, so we
+// preserve <u> as raw HTML. markdown-it has html:true on, so it
+// renders back to <u> on the next pass. Without this rule, turndown
+// would strip the tag and lose the formatting.
+turndown.addRule('underline', {
+  filter: ['u'] as any,
+  replacement: (content) => `<u>${content}</u>`,
 })
 
 // Highlight (mark) — colored marks keep raw HTML so the color round-trips;
@@ -105,7 +114,9 @@ turndown.addRule('image', {
   replacement: (_content, node) => {
     const el = node as HTMLImageElement
     const alt = (el.getAttribute('alt') || '').replace(/[\[\]]/g, '')
-    const src = el.getAttribute('src') || ''
+    // Prefer the pre-resolution path stashed by resolveRelativeAssets
+    // so we don't bake asset:// URLs into the saved markdown.
+    const src = el.getAttribute('data-raw-src') || el.getAttribute('src') || ''
     const title = el.getAttribute('title') || ''
     if (!src) return ''
     const needsAngle = /[()\s]/.test(src)
@@ -163,6 +174,7 @@ export function WysiwygEditor() {
   const setDoc = useAppStore((s) => s.setDoc)
   const spellcheck = useAppStore((s) => s.settings.spellcheck)
   const activeFilePath = useAppStore((s) => s.activeFilePath)
+  const activeAbsolutePath = useAppStore((s) => s.activeAbsolutePath)
   const activeFileKey = activeFilePath.join('/')
   const rootRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<number | null>(null)
@@ -175,6 +187,7 @@ export function WysiwygEditor() {
     el.innerHTML = md.render(doc)
     injectTOC(el)
     renderMermaidBlocks(el)
+    resolveRelativeAssets(el, activeAbsolutePath)
     // Scroll the editor and its scrolling ancestor back to the top.
     el.scrollTop = 0
     let parent: HTMLElement | null = el.parentElement
@@ -191,6 +204,41 @@ export function WysiwygEditor() {
     return () => setCERoot(null)
   }, [])
 
+  // Track cursor position to show inline "Type /" hint only on the
+  // currently focused empty paragraph. Uses rAF so the hint is updated
+  // after DOM mutations from Enter/delete have fully settled.
+  useEffect(() => {
+    let rafId = 0
+    const applyHint = () => {
+      const root = rootRef.current
+      if (!root) return
+      root.querySelectorAll('[data-cursor-hint]').forEach((el) =>
+        el.removeAttribute('data-cursor-hint'),
+      )
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0) return
+      const anchor = sel.anchorNode
+      if (!anchor || !root.contains(anchor)) return
+      let node: Node | null = anchor
+      while (node && node.parentNode !== root) node = node.parentNode
+      if (!node || node.nodeType !== Node.ELEMENT_NODE) return
+      const el = node as HTMLElement
+      if (!['P', 'DIV'].includes(el.tagName)) return
+      const text = el.textContent?.replace(/\u200B/g, '') ?? ''
+      const isEmptyBr = el.childNodes.length === 1 && el.firstChild?.nodeName === 'BR'
+      if (text === '' || isEmptyBr) el.setAttribute('data-cursor-hint', 'true')
+    }
+    const scheduleHint = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(applyHint)
+    }
+    document.addEventListener('selectionchange', scheduleHint)
+    return () => {
+      document.removeEventListener('selectionchange', scheduleHint)
+      cancelAnimationFrame(rafId)
+    }
+  }, [])
+
   // If `doc` changes externally (e.g. programmatic edit, undo), but we
   // are not currently editing this file, sync the DOM. We detect
   // external changes by comparing the current rendered markdown to
@@ -198,13 +246,14 @@ export function WysiwygEditor() {
   useEffect(() => {
     const el = rootRef.current
     if (!el) return
-    const current = turndown.turndown(el.innerHTML).trim()
+    const current = turndown.turndown(el.innerHTML.replace(/​/g, '')).trim()
     if (current.trim() !== doc.trim() && document.activeElement !== el) {
       el.innerHTML = md.render(doc)
       injectTOC(el)
       renderMermaidBlocks(el)
+      resolveRelativeAssets(el, activeAbsolutePath)
     }
-  }, [doc])
+  }, [doc, activeAbsolutePath])
 
   // Debounced: convert contentEditable HTML back to markdown and save
   const scheduleSave = () => {
@@ -212,7 +261,10 @@ export function WysiwygEditor() {
     timerRef.current = window.setTimeout(() => {
       const el = rootRef.current
       if (!el) return
-      const markdown = turndown.turndown(el.innerHTML)
+      // Strip caret-escape ZWSPs (inserted by inline-format commands as
+      // anti-inheritance boundaries) before serializing to markdown.
+      const html = el.innerHTML.replace(/​/g, '')
+      const markdown = turndown.turndown(html)
       setDoc(markdown)
     }, 400)
   }
@@ -335,6 +387,51 @@ export function WysiwygEditor() {
     const sel = window.getSelection()
     if (!sel || sel.rangeCount === 0) return
 
+    // ─── Fenced code-block trigger on Enter ──────────────────────────
+    // When the user types ```js (or ``` for plain) and presses Enter on
+    // a paragraph whose entire text is the fence-marker, swap that
+    // paragraph for a real <pre><code class="language-js"> block. This
+    // is what users mean by "the code-block button" — the markdown
+    // shorthand. We check this BEFORE walking for bq/li/pre because the
+    // current node is a normal <p>, not yet a <pre>.
+    {
+      let n: Node | null = sel.anchorNode
+      let block: HTMLElement | null = null
+      while (n && n !== rootRef.current) {
+        if (n.nodeType === Node.ELEMENT_NODE) {
+          const tag = (n as HTMLElement).tagName
+          if (tag === 'P' || tag === 'DIV') { block = n as HTMLElement; break }
+          // Stop walking if we hit a structural ancestor — those have
+          // their own Enter behaviour below.
+          if (['LI', 'PRE', 'BLOCKQUOTE', 'TABLE', 'TH', 'TD',
+               'H1','H2','H3','H4','H5','H6'].includes(tag)) { block = null; break }
+        }
+        n = n.parentNode
+      }
+      if (block) {
+        const txt = (block.textContent || '').replace(/\u00A0/g, ' ').trim()
+        const m = txt.match(/^```([\w-]*)$/)
+        if (m) {
+          e.preventDefault()
+          const lang = m[1]
+          const pre = document.createElement('pre')
+          const code = document.createElement('code')
+          if (lang) code.className = `language-${lang}`
+          // Seed with one zero-width space so contentEditable keeps a
+          // visible caret position inside the empty <code>.
+          code.textContent = '\u200B'
+          pre.appendChild(code)
+          block.replaceWith(pre)
+          // Place caret at the start of <code> (before the ZWSP).
+          const r = document.createRange()
+          r.setStart(code.firstChild!, 0); r.collapse(true)
+          sel.removeAllRanges(); sel.addRange(r)
+          scheduleSave()
+          return
+        }
+      }
+    }
+
     // Find closest relevant ancestor: <li>, <blockquote>, or <pre>.
     // First ancestor we hit wins, so nested list-in-blockquote still
     // prefers list behaviour (correct).
@@ -391,14 +488,37 @@ export function WysiwygEditor() {
         n = n.parentNode
       }
       const currentText = (pNode?.textContent || '').trim()
-      // Empty paragraph + Enter → exit blockquote
+      // Empty paragraph + Enter → split the blockquote at this point.
+      // The empty <p> becomes a regular paragraph between two halves.
+      // Children before pNode stay in the original bq; children AFTER
+      // pNode move into a new bq below the escape paragraph. This
+      // preserves all surrounding content — the previous implementation
+      // dropped subsequent siblings on the floor when the user hit
+      // Enter on an empty quote line that wasn't the last one.
       if (pNode && !currentText) {
         e.preventDefault()
         const escape = document.createElement('p')
         escape.innerHTML = '<br>'
+
+        // Collect siblings strictly after pNode (snapshot first; we are
+        // about to move them, which mutates the live list).
+        const after: ChildNode[] = []
+        for (let s = pNode.nextSibling; s; s = s.nextSibling) after.push(s)
+
+        // Insert escape immediately after the original bq.
         bq.parentNode?.insertBefore(escape, bq.nextSibling)
+
+        if (after.length > 0) {
+          const bq2 = document.createElement('blockquote')
+          for (const s of after) bq2.appendChild(s)
+          escape.parentNode?.insertBefore(bq2, escape.nextSibling)
+        }
+
         pNode.remove()
+        // If pNode was the only child, the original bq is now empty —
+        // remove the husk.
         if (!bq.children.length) bq.remove()
+
         const r = document.createRange()
         r.setStart(escape, 0); r.collapse(true)
         sel.removeAllRanges(); sel.addRange(r)
@@ -478,11 +598,37 @@ export function WysiwygEditor() {
         return
       }
 
-      // Multi-item list, current is empty → exit list (standard behaviour)
+      // Multi-item list, current is empty → exit at this position. Same
+      // shape as the blockquote split: items before stay in the
+      // original list; items after move into a new sibling list, with
+      // an empty <p> between for the cursor. Without the split we'd
+      // silently warp the user past every remaining item below.
       e.preventDefault()
       const p = document.createElement('p')
       p.innerHTML = '<br>'
+
+      const after: ChildNode[] = []
+      for (let s = li.nextSibling; s; s = s.nextSibling) after.push(s)
+
       list.parentNode?.insertBefore(p, list.nextSibling)
+
+      if (after.length > 0) {
+        const list2 = document.createElement(list.tagName.toLowerCase()) as HTMLOListElement | HTMLUListElement
+        // Preserve OL start counting where possible
+        if (list.tagName === 'OL') {
+          const items = list.children
+          // The new list should continue numbering after the items left
+          // behind in the original list (excluding the removed `li`).
+          const remainingBefore = Array.from(items).indexOf(li)
+          const baseStart = (list as HTMLOListElement).start || 1
+          ;(list2 as HTMLOListElement).start = baseStart + remainingBefore
+        }
+        // Preserve task-list class if present
+        if (list.classList.contains('task-list')) list2.classList.add('task-list')
+        for (const s of after) list2.appendChild(s)
+        p.parentNode?.insertBefore(list2, p.nextSibling)
+      }
+
       li.remove()
       if (!list.children.length) list.remove()
       const r = document.createRange()

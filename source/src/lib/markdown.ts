@@ -110,7 +110,9 @@ function getMermaid() {
     mermaidReady = import('mermaid').then((m) => {
       m.default.initialize({
         startOnLoad: false,
-        theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
+        theme: ['dark', 'monokai', 'dracula', 'one-dark'].includes(
+          document.documentElement.getAttribute('data-theme') || ''
+        ) ? 'dark' : 'default',
         securityLevel: 'loose',
       })
       return m
@@ -140,6 +142,105 @@ export async function renderMermaidBlocks(container: HTMLElement) {
       block.textContent = code // Show raw code on error
     }
   }
+}
+
+/**
+ * Rewrite relative image `src` attributes inside a rendered container so
+ * they resolve against the markdown file's own directory instead of the
+ * webview origin.
+ *
+ * Without this, opening an .md from an arbitrary folder breaks every
+ * `![alt](./pic.png)` reference: markdown-it emits `<img src="./pic.png">`,
+ * which the webview resolves against `http://tauri.localhost/...` and
+ * therefore cannot load. We walk the tree, detect relative paths, and
+ * rewrite them to asset:// URLs via `convertFileSrc`.
+ *
+ * The original path is preserved on `data-raw-src` so Turndown can round
+ * trip back to the markdown source instead of writing asset:// URLs to
+ * disk.
+ */
+
+// Eagerly load `convertFileSrc` once under Tauri so the rewrite is sync
+// for every subsequent call. Falling back to dynamic import the first
+// time also avoids breaking before the module is in the cache.
+let _convertFileSrc: ((p: string) => string) | null = null
+if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+  void import('@tauri-apps/api/core').then((m) => {
+    _convertFileSrc = m.convertFileSrc
+  })
+}
+
+function isAbsoluteLikeUrl(s: string): boolean {
+  // Match schemes like http: data: blob: asset:, plus protocol-relative
+  // and fragment-only links. A bare Windows drive letter like "C:" is
+  // also caught here intentionally — we leave absolute drive paths alone
+  // (a separate code path handles them via convertFileSrc directly).
+  return /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|\/\/|#)/.test(s)
+}
+
+function joinAndNormalize(dir: string, rel: string): string {
+  // Accept either separator in `rel` (markdown sometimes contains
+  // backslash paths from Windows users). The output keeps forward
+  // slashes — convertFileSrc URL-encodes either form fine.
+  const parts = (dir + '/' + rel).split(/[\\/]+/)
+  const out: string[] = []
+  for (const p of parts) {
+    if (!p || p === '.') continue
+    if (p === '..') { out.pop(); continue }
+    out.push(p)
+  }
+  return out.join('/')
+}
+
+function rewriteImagesIn(
+  container: HTMLElement,
+  dir: string,
+  convertFileSrc: (p: string) => string,
+) {
+  container.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
+    const raw = img.getAttribute('src')
+    if (!raw) return
+    // Idempotent: skip imgs we already rewrote.
+    if (img.hasAttribute('data-raw-src')) return
+    if (isAbsoluteLikeUrl(raw)) return
+    try {
+      const decoded = decodeURI(raw)
+      const abs = joinAndNormalize(dir, decoded)
+      img.setAttribute('data-raw-src', raw)
+      img.src = convertFileSrc(abs)
+    } catch (err) {
+      console.warn('resolveRelativeAssets: failed for', raw, err)
+    }
+  })
+}
+
+export function resolveRelativeAssets(
+  container: HTMLElement,
+  mdAbsolutePath: string | null,
+) {
+  if (!mdAbsolutePath) return
+  // Only meaningful under Tauri — the browser fallback has no filesystem
+  // access for arbitrary paths.
+  if (!(window as any).__TAURI_INTERNALS__) return
+
+  // Derive the file's directory; accept either Windows or POSIX separators.
+  const lastSep = Math.max(
+    mdAbsolutePath.lastIndexOf('/'),
+    mdAbsolutePath.lastIndexOf('\\'),
+  )
+  if (lastSep < 0) return
+  const dir = mdAbsolutePath.slice(0, lastSep).replace(/\\/g, '/')
+
+  if (_convertFileSrc) {
+    rewriteImagesIn(container, dir, _convertFileSrc)
+    return
+  }
+  // First call before the dynamic import resolved — load now and
+  // rewrite. Subsequent calls go through the sync path above.
+  void import('@tauri-apps/api/core').then((m) => {
+    _convertFileSrc = m.convertFileSrc
+    rewriteImagesIn(container, dir, m.convertFileSrc)
+  })
 }
 
 /**

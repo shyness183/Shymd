@@ -39,6 +39,15 @@ function restoreSelection(): boolean {
 
 function focusRoot() {
   _ceRoot?.focus()
+  // Notify the editor's `onInput` handler so it schedules a save. DOM
+  // mutations via `range.insertNode()` / `appendChild()` / etc. do NOT
+  // fire native `input` events on contentEditable — only user-typed
+  // edits and `execCommand` do. Without this synthetic dispatch,
+  // commands that insert images, tables, code blocks, math blocks,
+  // rules, etc. never reach setDoc, so the change is lost when the
+  // user switches files. (The built-in `input` event bubbles and is
+  // picked up by React's synthetic handler on the contentEditable.)
+  _ceRoot?.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
 function selectionInsideRoot(): boolean {
@@ -48,69 +57,123 @@ function selectionInsideRoot(): boolean {
   return !!node && _ceRoot.contains(node)
 }
 
-// ─── Inline formatting (execCommand) ────────────────────────────────
+// ─── Inline formatting (wrap-based, no execCommand) ─────────────────
+// We deliberately avoid `document.execCommand('bold' | 'italic' | …)`.
+// execCommand sets a "next-typing" formatting flag on a collapsed
+// selection, which is what causes formatting to "inherit" into text the
+// user types AFTER the originally-formatted run. The wrap approach
+// gives us full control over cursor placement, and we put the caret
+// AFTER the wrapper so subsequent typing is plain.
 
-export function htmlBold() {
-  if (!selectionInsideRoot()) return
-  document.execCommand('bold')
-  focusRoot()
-}
-export function htmlItalic() {
-  if (!selectionInsideRoot()) return
-  document.execCommand('italic')
-  focusRoot()
-}
-export function htmlUnderline() {
-  if (!selectionInsideRoot()) return
-  document.execCommand('underline')
-  focusRoot()
-}
-export function htmlStrikethrough() {
-  if (!selectionInsideRoot()) return
-  document.execCommand('strikeThrough')
-  focusRoot()
-}
-
-// Wrap selection in an inline element with a class.
-function wrapSelectionWith(tagName: string, attrs: Record<string, string> = {}) {
-  if (!selectionInsideRoot()) return
-  const sel = window.getSelection()
-  if (!sel || sel.rangeCount === 0) return
-  const range = sel.getRangeAt(0)
-  if (range.collapsed) return
-  const el = document.createElement(tagName)
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)
-  try {
-    el.appendChild(range.extractContents())
-    range.insertNode(el)
-    // Re-select the newly inserted content
-    sel.removeAllRanges()
-    const r = document.createRange()
-    r.selectNodeContents(el)
-    sel.addRange(r)
-  } catch {
-    // ignore
-  }
-  focusRoot()
-}
-
-// Walk up from `node` to the first ancestor with the given tagName, stopping
-// at `root`. Returns null if not found.
+// Walk up from `node` to the first ancestor whose tagName is in `tags`,
+// stopping at `root`. Returns null if not found.
 function findAncestorTag(
   node: Node | null,
-  tagName: string,
+  tagName: string | string[],
   root: HTMLElement | null,
 ): HTMLElement | null {
-  const upper = tagName.toUpperCase()
+  const upper = Array.isArray(tagName)
+    ? tagName.map((t) => t.toUpperCase())
+    : [tagName.toUpperCase()]
   let el: Node | null = node
   while (el && el !== root) {
-    if (el.nodeType === Node.ELEMENT_NODE && (el as HTMLElement).tagName === upper) {
+    if (el.nodeType === Node.ELEMENT_NODE && upper.includes((el as HTMLElement).tagName)) {
       return el as HTMLElement
     }
     el = el.parentNode
   }
   return null
 }
+
+/**
+ * Place the caret OUTSIDE an inline wrapper, immediately after it.
+ *
+ * `range.setStartAfter(el)` is not enough on its own: when `el` is the
+ * last child of its parent, Chromium / WebKit still computes the
+ * "typing style" from the inside-end of `el`, so the next typed
+ * character (and any new paragraph created via Enter) inherits the
+ * wrapper's formatting. Inserting a zero-width-space text node as a
+ * sibling AFTER `el` and putting the caret INSIDE that text node moves
+ * the caret physically out of `el`, which breaks the typing-style
+ * inheritance and makes Enter split at the ZWSP boundary instead of
+ * cloning the wrapper into the new block.
+ *
+ * The ZWSP is invisible and is stripped from the HTML before
+ * conversion to markdown (see WysiwygEditor.tsx).
+ */
+function placeCaretOutsideAfter(el: HTMLElement) {
+  const sel = window.getSelection()
+  if (!sel) return
+  const next = el.nextSibling
+  let textNode: Text
+  let offset: number
+  if (next && next.nodeType === Node.TEXT_NODE) {
+    // Reuse existing text node, prepend ZWSP so caret lives on a real
+    // character outside the wrapper.
+    const t = next as Text
+    t.nodeValue = '​' + (t.nodeValue ?? '')
+    textNode = t
+    offset = 1
+  } else {
+    textNode = document.createTextNode('​')
+    el.parentNode?.insertBefore(textNode, el.nextSibling)
+    offset = 1
+  }
+  const r = document.createRange()
+  r.setStart(textNode, offset)
+  r.collapse(true)
+  sel.removeAllRanges()
+  sel.addRange(r)
+}
+
+/**
+ * Toggle an inline wrapper around the current selection. Behaviours:
+ *
+ *  - Collapsed selection → bail (don't toggle a "sticky" format state).
+ *    This is the explicit fix for "underline/strike/inline-code shouldn't
+ *    inherit": typing after a formatted run must not silently carry the
+ *    style forward.
+ *  - Selection inside an existing matching wrapper → unwrap it.
+ *  - Otherwise → wrap, then place the caret AFTER the wrapper.
+ *
+ * `alsoMatch` lets bold/italic/strike toggle their alternate-tag form
+ * (<b>, <i>, <s>) that may exist from older runs or pasted HTML.
+ */
+function toggleInlineWrap(wrapTag: string, alsoMatch: string[] = []) {
+  if (!selectionInsideRoot()) return
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return
+  if (sel.isCollapsed) return
+
+  const existing = findAncestorTag(sel.anchorNode, [wrapTag, ...alsoMatch], _ceRoot)
+  if (existing) {
+    unwrapElement(existing)
+    focusRoot()
+    return
+  }
+
+  const range = sel.getRangeAt(0)
+  if (range.collapsed) return
+  const el = document.createElement(wrapTag)
+  try {
+    el.appendChild(range.extractContents())
+    range.insertNode(el)
+    // Caret in a ZWSP text node OUTSIDE the wrapper. `setStartAfter` is
+    // not enough — when `el` is the last child of its parent, the
+    // browser's "typing style" cache still treats the caret as inside
+    // the wrapper, so the next typed char (and Enter-cloned paragraph)
+    // inherits the formatting. The ZWSP boundary breaks that.
+    placeCaretOutsideAfter(el)
+  } catch {
+    /* ignore — boundary errors on malformed ranges */
+  }
+  focusRoot()
+}
+
+export function htmlBold() { toggleInlineWrap('strong', ['b']) }
+export function htmlItalic() { toggleInlineWrap('em', ['i']) }
+export function htmlUnderline() { toggleInlineWrap('u') }
+export function htmlStrikethrough() { toggleInlineWrap('del', ['s']) }
 
 /** Unwrap an element: replace it with its children, then select the same range. */
 function unwrapElement(el: HTMLElement) {
@@ -133,16 +196,7 @@ function unwrapElement(el: HTMLElement) {
 }
 
 export function htmlInlineCode() {
-  if (!selectionInsideRoot()) return
-  const sel = window.getSelection()
-  if (!sel || sel.rangeCount === 0) return
-  const existing = findAncestorTag(sel.anchorNode, 'code', _ceRoot)
-  if (existing) {
-    unwrapElement(existing)
-    focusRoot()
-    return
-  }
-  wrapSelectionWith('code')
+  toggleInlineWrap('code')
 }
 
 /**
@@ -151,6 +205,11 @@ export function htmlInlineCode() {
  * can round-trip through raw-HTML markdown. If a mark already exists:
  *   - passing `color` replaces the existing color
  *   - passing no `color` (or `null`) removes the mark entirely.
+ *
+ * Same "no inheritance" contract as the wrap commands: collapsed
+ * selection bails, the wrap is exactly the selected range, and the
+ * caret lands AFTER the resulting `<mark>` so subsequent typing is
+ * plain.
  */
 export function htmlHighlight(color?: string | null) {
   if (!selectionInsideRoot()) return
@@ -158,44 +217,62 @@ export function htmlHighlight(color?: string | null) {
   if (!sel || sel.rangeCount === 0) return
   const existing = findAncestorTag(sel.anchorNode, 'mark', _ceRoot)
 
-  // Use execCommand('insertHTML') so the browser records a single,
-  // undo-able step in its native undo stack. Manual DOM surgery via
-  // range.insertNode() is not tracked by execCommand undo.
   if (existing) {
     if (color) {
-      // Update color on existing mark. Undo won't perfectly restore the
-      // previous color (no native undo entry for style mutations) but the
-      // mark itself survives which is the common case.
+      // Update color on existing mark.
       existing.style.background = color
+      _lastHighlightMark = existing
       focusRoot()
       return
     }
-    // No color provided → toggle off. Select the full mark, replace with
-    // its inner HTML via insertHTML so undo puts the <mark> back.
-    const range = document.createRange()
-    range.selectNode(existing)
-    sel.removeAllRanges()
-    sel.addRange(range)
-    const inner = existing.innerHTML
-    document.execCommand('insertHTML', false, inner)
+    // No color → toggle off via unwrap (matches the strong/em/u/del
+    // unwrap path; cursor lands after the previously-marked text).
+    _lastHighlightMark = null
+    unwrapElement(existing)
+    // Move caret to the END of the selection so typing continues plain
+    // text outside the (now-removed) mark.
+    const sel2 = window.getSelection()
+    if (sel2 && sel2.rangeCount > 0) {
+      const r = sel2.getRangeAt(0).cloneRange()
+      r.collapse(false)
+      sel2.removeAllRanges(); sel2.addRange(r)
+    }
     focusRoot()
     return
   }
 
-  // No existing mark. If the selection is collapsed, nothing to highlight.
+  // No existing mark. Bail on collapsed selection — same anti-inheritance
+  // rule as the wrap commands.
   if (sel.isCollapsed) return
 
-  // Wrap the current selection in a <mark>. Grab the selected HTML, build
-  // the replacement string, then let execCommand swap it in-place.
   const range = sel.getRangeAt(0)
-  const frag = range.cloneContents()
-  const container = document.createElement('div')
-  container.appendChild(frag)
-  const innerHtml = container.innerHTML
-  const styleAttr = color ? ` style="background:${color}"` : ''
-  const replacement = `<mark${styleAttr}>${innerHtml}</mark>`
-  document.execCommand('insertHTML', false, replacement)
+  if (range.collapsed) return
+  const mark = document.createElement('mark')
+  if (color) mark.style.background = color
+  try {
+    mark.appendChild(range.extractContents())
+    range.insertNode(mark)
+    _lastHighlightMark = mark
+    // ZWSP boundary so typing after the highlight doesn't inherit it
+    // (and Enter starts a fresh, unhighlighted paragraph).
+    placeCaretOutsideAfter(mark)
+  } catch {
+    /* ignore — boundary errors on malformed ranges */
+  }
   focusRoot()
+}
+
+/**
+ * The most recently created (or recoloured) <mark> element. The
+ * floating toolbar uses this to live-update the highlight colour as
+ * the user drags the shade slider — after `htmlHighlight` wraps the
+ * selection, the caret moves OUTSIDE the mark, so re-calling
+ * `htmlHighlight` would no longer find it. This ref breaks that
+ * dependency.
+ */
+let _lastHighlightMark: HTMLElement | null = null
+export function getLastHighlightMark(): HTMLElement | null {
+  return _lastHighlightMark
 }
 
 /** Returns the currently-active <mark> ancestor of the selection, or null. */
@@ -236,23 +313,37 @@ export async function htmlHyperlink() {
   sel.addRange(range)
 
   if (existingA) {
-    // Edit existing link in-place
+    // Edit existing link in-place. Place caret AFTER the link so the
+    // user typing more doesn't extend the anchor text.
     existingA.href = result.url
     if (result.text) existingA.textContent = result.text
+    placeCaretOutsideAfter(existingA)
   } else if (!sel.isCollapsed) {
-    // Wrap selected text in a link
-    document.execCommand('createLink', false, result.url)
-    const newA = _ceRoot.querySelector(`a[href="${result.url}"]`) as HTMLAnchorElement | null
-    if (newA && result.text && result.text !== selectedText) newA.textContent = result.text
+    // Wrap selected text in a fresh <a>. We avoid execCommand here for
+    // the same reason as bold/italic — execCommand leaves the caret
+    // INSIDE the new <a>, so the next typed character continues the
+    // link. Build the anchor manually and put the caret after it.
+    const a = document.createElement('a')
+    a.href = result.url
+    try {
+      a.appendChild(range.extractContents())
+      // Optionally rewrite the link text if the user changed it in the
+      // dialog. We replace whatever was extracted with the new label.
+      if (result.text && result.text !== selectedText) {
+        a.textContent = result.text
+      }
+      range.insertNode(a)
+      placeCaretOutsideAfter(a)
+    } catch {
+      /* ignore — boundary errors on malformed ranges */
+    }
   } else {
-    // No selection — insert new link node
+    // No selection — insert new link node. Caret AFTER.
     const a = document.createElement('a')
     a.href = result.url
     a.textContent = result.text || result.url
     range.insertNode(a)
-    const r = document.createRange()
-    r.setStartAfter(a); r.collapse(true)
-    sel.removeAllRanges(); sel.addRange(r)
+    placeCaretOutsideAfter(a)
   }
   focusRoot()
 }
@@ -284,6 +375,10 @@ export function htmlOrderedList() {
 }
 
 // Task list: insert a <ul class="task-list"><li class="task-list-item">…</li></ul>
+// The new <li> contains exactly the selected text (or "任务" if the
+// selection was empty), and the caret moves INTO the new item so the
+// user can keep typing inside the task — typing outside the list is
+// just a click away.
 export function htmlTaskList() {
   if (!selectionInsideRoot()) return
   const sel = window.getSelection()
@@ -298,10 +393,17 @@ export function htmlTaskList() {
   cb.type = 'checkbox'
   cb.disabled = false
   li.appendChild(cb)
-  li.appendChild(document.createTextNode(' ' + text))
+  const labelNode = document.createTextNode(' ' + text)
+  li.appendChild(labelNode)
   ul.appendChild(li)
   range.deleteContents()
   range.insertNode(ul)
+  // Caret at the end of the label text, inside the <li>.
+  const r = document.createRange()
+  r.setStart(labelNode, labelNode.nodeValue?.length ?? 0)
+  r.collapse(true)
+  sel.removeAllRanges()
+  sel.addRange(r)
   focusRoot()
 }
 
@@ -352,7 +454,9 @@ export function htmlTable(rows: number, cols: number) {
   focusRoot()
 }
 
-// Code block (<pre><code>…</code></pre>)
+// Code block (<pre><code>…</code></pre>) — wraps exactly the selected
+// text, no more no less, and drops the caret at the end of the new
+// <code> so the user keeps typing inside the block.
 export function htmlCodeBlock() {
   if (!selectionInsideRoot()) return
   const sel = window.getSelection()
@@ -361,10 +465,18 @@ export function htmlCodeBlock() {
   const text = sel.toString() || ''
   const pre = document.createElement('pre')
   const code = document.createElement('code')
-  code.textContent = text || '\n'
+  // textContent below replaces the codeText node we put inside, so we
+  // create a stable text node we can re-anchor to for caret placement.
+  const codeText = document.createTextNode(text || '\u200B')
+  code.appendChild(codeText)
   pre.appendChild(code)
   range.deleteContents()
   range.insertNode(pre)
+  const r = document.createRange()
+  r.setStart(codeText, codeText.nodeValue?.length ?? 0)
+  r.collapse(true)
+  sel.removeAllRanges()
+  sel.addRange(r)
   focusRoot()
 }
 
@@ -451,57 +563,128 @@ export async function htmlImage() {
     const r = finalSel.getRangeAt(0)
     r.deleteContents()
     r.insertNode(img)
+    // Place caret AFTER the image so the next typed character doesn't
+    // accidentally land before it (some browsers leave the caret at
+    // the start of the inserted node otherwise).
+    const after = document.createRange()
+    after.setStartAfter(img)
+    after.collapse(true)
+    finalSel.removeAllRanges()
+    finalSel.addRange(after)
   }
   focusRoot()
 }
 
 /**
- * Clear inline formatting in contentEditable. `execCommand('removeFormat')`
- * handles the browser-native marks (bold/italic/underline/strike/color);
- * we then manually unwrap the markdown-specific tags the browser doesn't
- * know about: <mark>, <code>, and our custom inline-math spans.
+ * Clear inline formatting inside the current selection — and ONLY
+ * inside it. The previous implementation walked the whole tree and
+ * unwrapped any element that *intersected* the selection range, which
+ * meant selecting half of a `<strong>` block and clicking "clear" would
+ * also strip the formatting from the unselected half. The user
+ * expectation is "selected → cleaned, unselected → untouched."
+ *
+ * Approach:
+ *   1. Extract the selection range as a fragment (the actual selected
+ *      slice — siblings outside stay put).
+ *   2. Inside the fragment, recursively unwrap the inline-format tags
+ *      we care about (strong/em/b/i/u/s/del/mark/code).
+ *   3. Re-insert the cleaned fragment in place of the original
+ *      selection. Because extractContents splits any wrapping tags at
+ *      the selection boundary, the unselected halves stay wrapped.
  */
 export function htmlClearFormat() {
   if (!selectionInsideRoot()) return
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return
-  try {
-    document.execCommand('removeFormat')
-  } catch {
-    /* ignore — some Chromium builds throw on cross-element selections */
-  }
-  // Unwrap mark/code that removeFormat doesn't touch.
-  if (!_ceRoot) return
   const range = sel.getRangeAt(0)
-  const walker = document.createTreeWalker(_ceRoot, NodeFilter.SHOW_ELEMENT, {
-    acceptNode: (node) => {
-      const el = node as HTMLElement
-      if (!range.intersectsNode(el)) return NodeFilter.FILTER_REJECT
-      const tag = el.tagName
-      return (tag === 'MARK' || tag === 'CODE' || tag === 'U' || tag === 'S' || tag === 'DEL' || tag === 'STRONG' || tag === 'EM' || tag === 'B' || tag === 'I')
-        ? NodeFilter.FILTER_ACCEPT
-        : NodeFilter.FILTER_SKIP
-    },
-  })
-  const targets: HTMLElement[] = []
-  let cur = walker.nextNode() as HTMLElement | null
-  while (cur) {
-    targets.push(cur)
-    cur = walker.nextNode() as HTMLElement | null
+
+  const FORMAT_TAGS = new Set([
+    'STRONG', 'B', 'EM', 'I', 'U', 'S', 'DEL', 'MARK', 'CODE',
+    'FONT', // legacy execCommand color/font wrappers
+  ])
+
+  const stripIn = (root: Node) => {
+    // Walk children first (depth-first) since unwrap-in-place mutates
+    // siblings. Snapshot child list before recursing.
+    const kids = Array.from(root.childNodes)
+    for (const k of kids) {
+      if (k.nodeType === Node.ELEMENT_NODE) stripIn(k)
+    }
+    if (root.nodeType !== Node.ELEMENT_NODE) return
+    const el = root as HTMLElement
+    if (FORMAT_TAGS.has(el.tagName)) {
+      const parent = el.parentNode
+      if (!parent) return
+      while (el.firstChild) parent.insertBefore(el.firstChild, el)
+      parent.removeChild(el)
+      return
+    }
+    // For non-format elements (e.g. <span style="color:red">), strip
+    // inline style/classes that execCommand-style tools leave behind.
+    if (el.hasAttribute('style')) {
+      el.style.color = ''
+      el.style.background = ''
+      el.style.backgroundColor = ''
+      el.style.textDecoration = ''
+      el.style.fontStyle = ''
+      el.style.fontWeight = ''
+      if (!el.getAttribute('style')) el.removeAttribute('style')
+    }
   }
-  // Unwrap in reverse so earlier unwraps don't shift later references.
-  for (let i = targets.length - 1; i >= 0; i--) {
-    const el = targets[i]
-    const parent = el.parentNode
-    if (!parent) continue
-    while (el.firstChild) parent.insertBefore(el.firstChild, el)
-    parent.removeChild(el)
-  }
+
+  // Snapshot endpoints before extracting (extract clears the range).
+  const startContainer = range.startContainer
+  const startOffset = range.startOffset
+
+  const frag = range.extractContents()
+  stripIn(frag)
+
+  // Re-insert at the original start point. After insert, normalize the
+  // parent so adjacent text nodes from the split-points re-merge.
+  range.setStart(startContainer, startOffset)
+  range.collapse(true)
+  // Re-acquire because frag insertion can invalidate references.
+  range.insertNode(frag)
+  if (startContainer.parentNode) (startContainer.parentNode as Element).normalize?.()
+
+  // Place caret at the end of where the cleared content now sits.
+  const end = document.createRange()
+  end.setStart(range.endContainer, range.endOffset)
+  end.collapse(true)
+  sel.removeAllRanges()
+  sel.addRange(end)
   focusRoot()
 }
 
+// Render a KaTeX HTML node for direct insertion into the WYSIWYG DOM.
+// Falls back to a plain `$…$` text wrapper if KaTeX rejects the source
+// so the user doesn't lose their input on a typo. Turndown's 'katex'
+// rule round-trips both forms back to `$…$` / `$$…$$` markdown via
+// the embedded <annotation> tag.
+async function renderMathNode(tex: string, display: boolean): Promise<HTMLElement> {
+  const { default: katex } = await import('katex')
+  const wrapper = display
+    ? document.createElement('div')
+    : document.createElement('span')
+  try {
+    wrapper.innerHTML = katex.renderToString(tex, {
+      displayMode: display,
+      throwOnError: false,
+      output: 'html',
+    })
+    // Make the rendered math non-editable as a unit so users don't end
+    // up navigating into the KaTeX-internal spans with arrow keys.
+    wrapper.setAttribute('contenteditable', 'false')
+    return wrapper
+  } catch {
+    wrapper.textContent = display ? `$$${tex}$$` : `$${tex}$`
+    return wrapper
+  }
+}
+
 // Inline math — opens the custom LaTeX dialog (live KaTeX preview) and
-// inserts the result as $...$ (or $$...$$ if the user flips to block).
+// inserts the rendered result inline. The wrapper is contenteditable=false
+// so cursor navigation skips over it cleanly.
 export async function htmlInlineMath() {
   if (!selectionInsideRoot()) return
   const sel = window.getSelection()
@@ -513,22 +696,24 @@ export async function htmlInlineMath() {
   const result = await showMathDialog(seed, /* display */ false)
   if (!result) { focusRoot(); return }
 
-  // Restore the pre-dialog selection before inserting.
   _ceRoot?.focus()
   const s = window.getSelection()
   if (s) { s.removeAllRanges(); s.addRange(range) }
 
+  const node = await renderMathNode(result.tex, result.display)
   if (result.display) {
-    const div = document.createElement('div')
-    div.textContent = `$$${result.tex}$$`
     range.collapse(false)
-    range.insertNode(div)
+    range.insertNode(node)
   } else {
-    const span = document.createElement('span')
-    span.textContent = `$${result.tex}$`
     range.deleteContents()
-    range.insertNode(span)
+    range.insertNode(node)
   }
+  // Place cursor AFTER the inserted math node so typing continues plain.
+  const after = document.createRange()
+  after.setStartAfter(node)
+  after.collapse(true)
+  const sel2 = window.getSelection()
+  if (sel2) { sel2.removeAllRanges(); sel2.addRange(after) }
   focusRoot()
 }
 
@@ -547,16 +732,18 @@ export async function htmlMathBlock() {
   const s = window.getSelection()
   if (s) { s.removeAllRanges(); s.addRange(range) }
 
+  const node = await renderMathNode(result.tex, result.display)
   if (result.display) {
-    const div = document.createElement('div')
-    div.textContent = `$$${result.tex}$$`
     range.collapse(false)
-    range.insertNode(div)
+    range.insertNode(node)
   } else {
-    const span = document.createElement('span')
-    span.textContent = `$${result.tex}$`
     range.deleteContents()
-    range.insertNode(span)
+    range.insertNode(node)
   }
+  const after = document.createRange()
+  after.setStartAfter(node)
+  after.collapse(true)
+  const sel2 = window.getSelection()
+  if (sel2) { sel2.removeAllRanges(); sel2.addRange(after) }
   focusRoot()
 }

@@ -9,9 +9,10 @@ import styles from './SlashMenu.module.css'
 /**
  * Slash-command palette.
  *
- * Opens when the user types `/` at the start of an empty line (or after
- * whitespace — Notion-style). The palette filters as they type, supports
- * ↑ ↓ to navigate, Enter/Tab to confirm, Esc to dismiss.
+ * Opens when the user types `/` at line start OR immediately after
+ * whitespace (Notion-style relaxed trigger). The palette filters as
+ * they keep typing, supports ↑/↓ to navigate, Enter/Tab to confirm,
+ * Esc to dismiss.
  *
  * Works across both source mode (CodeMirror) and WYSIWYG mode
  * (contentEditable) — it figures out which editor has focus and routes
@@ -37,17 +38,17 @@ export function SlashMenu() {
   const [query, setQuery] = useState('')
   const [index, setIndex] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
+  const lastSlashPosRef = useRef<number | null>(null)
 
   const filtered = useMemo(() => filterSlashCommands(query), [query])
 
-  // ── Close helpers ──────────────────────────────────────────────────
   const close = () => {
     setState(null)
     setQuery('')
     setIndex(0)
+    lastSlashPosRef.current = null
   }
 
-  // Keep the highlighted item in view as the list changes.
   useEffect(() => {
     if (!state) return
     const el = listRef.current?.children[index] as HTMLElement | undefined
@@ -55,17 +56,14 @@ export function SlashMenu() {
   }, [index, state, filtered.length])
 
   useEffect(() => {
-    // When query changes and old index is out of range, reset.
     if (index >= filtered.length) setIndex(0)
   }, [filtered.length, index])
 
-  // ── Source-mode detection (CodeMirror) ────────────────────────────
+  // ── Source-mode (CodeMirror) ──────────────────────────────────────
   useEffect(() => {
     if (editorMode !== 'source') return
     const view = getEditorView()
     if (!view) return
-
-    let lastSlashPos: number | null = null
 
     const onInput = () => {
       const v = getEditorView()
@@ -74,15 +72,14 @@ export function SlashMenu() {
       if (from !== to) return
       const line = v.state.doc.lineAt(from)
       const textBefore = line.text.slice(0, from - line.from)
-      // Bail if we're inside a fenced code block — count ``` fences
-      // from doc start up to the current line.
+      // Bail if we're inside a fenced code block.
       const before = v.state.doc.sliceString(0, line.from)
       const fenceMatches = before.match(/^```/gm)
       if (fenceMatches && fenceMatches.length % 2 === 1) {
         if (state?.mode === 'source') close()
         return
       }
-      // Only trigger on "/" at the very start or right after whitespace.
+      // Relaxed trigger: line start OR after whitespace.
       const m = textBefore.match(/(?:^|\s)\/([^\s/]*)$/)
       if (m) {
         const slashPos = from - (m[1].length + 1)
@@ -90,17 +87,15 @@ export function SlashMenu() {
         if (!coords) { if (state) close(); return }
         setQuery(m[1])
         setIndex(0)
-        lastSlashPos = slashPos
+        lastSlashPosRef.current = slashPos
         setState({
           mode: 'source',
           x: coords.left,
           y: coords.bottom + 4,
           slashPos,
         })
-      } else if (state?.mode === 'source' && lastSlashPos !== null) {
-        // User navigated away / deleted the slash — close.
+      } else if (state?.mode === 'source' && lastSlashPosRef.current !== null) {
         close()
-        lastSlashPos = null
       }
     }
 
@@ -117,10 +112,6 @@ export function SlashMenu() {
       }
     }
 
-    // CodeMirror doesn't fire "input" on its contenteditable in a way we
-    // can listen to directly; watch the document content via a DOM
-    // observer on the scroll DOM. Easier path: listen to `input` on the
-    // wrapping container.
     const dom = view.contentDOM
     dom.addEventListener('input', onInput)
     document.addEventListener('keydown', onKey, true)
@@ -128,13 +119,9 @@ export function SlashMenu() {
       dom.removeEventListener('input', onInput)
       document.removeEventListener('keydown', onKey, true)
     }
-    // We intentionally exclude `filtered` & `index` from deps — onKey
-    // reads them via closure and is refreshed each render because the
-    // effect re-runs on mode change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorMode, state, filtered, index])
 
-  // ── WYSIWYG-mode detection (contentEditable) ───────────────────────
+  // ── WYSIWYG-mode (contentEditable) ─────────────────────────────────
   useEffect(() => {
     if (editorMode !== 'wysiwyg') return
     const root = getCERoot()
@@ -149,8 +136,7 @@ export function SlashMenu() {
         return
       }
       const textNode = anchor as Text
-      // Bail out when the caret is inside code/pre — users want a literal
-      // `/` there, not a command menu.
+      // Bail when the caret is inside code/pre.
       const parentEl = textNode.parentElement
       if (parentEl && parentEl.closest('pre, code')) {
         if (state?.mode === 'wysiwyg') close()
@@ -158,6 +144,8 @@ export function SlashMenu() {
       }
       const offset = sel.anchorOffset
       const before = textNode.nodeValue?.slice(0, offset) || ''
+      // Relaxed trigger: line start (offset 0 in this text node) OR
+      // after whitespace.
       const m = before.match(/(?:^|\s)\/([^\s/]*)$/)
       if (m) {
         const textOffset = offset - (m[1].length + 1)
@@ -200,14 +188,11 @@ export function SlashMenu() {
       root.removeEventListener('input', onInput)
       document.removeEventListener('keydown', onKey, true)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorMode, state, filtered, index])
 
-  // ── Close on outside click ────────────────────────────────────────
   useEffect(() => {
     if (!state) return
     const onDown = () => close()
-    // Delay so the current input event finishes.
     const t = window.setTimeout(() => {
       document.addEventListener('mousedown', onDown, { once: true })
     }, 0)
@@ -217,7 +202,6 @@ export function SlashMenu() {
     }
   }, [state])
 
-  // ── Run selected command: delete "/query" then execute ────────────
   const runCommand = async (cmd: SlashCommand) => {
     const s = state
     close()
@@ -225,7 +209,6 @@ export function SlashMenu() {
     if (s.mode === 'source') {
       const view = getEditorView()
       if (!view || s.slashPos === undefined) return
-      // Delete "/query" including the slash and the query text.
       const from = s.slashPos
       const to = from + 1 + query.length
       view.dispatch({
@@ -242,7 +225,6 @@ export function SlashMenu() {
       range.setStart(s.textNode, start)
       range.setEnd(s.textNode, Math.min(end, s.textNode.nodeValue?.length ?? end))
       range.deleteContents()
-      // Move the caret to where the slash was.
       const sel = window.getSelection()
       if (sel) { sel.removeAllRanges(); sel.addRange(range) }
       cmd.execHtml()
@@ -251,7 +233,6 @@ export function SlashMenu() {
 
   if (!state) return null
 
-  // Clamp to viewport so the menu doesn't spill off the right edge.
   const MENU_W = 280
   const MENU_H = Math.min(320, 44 + filtered.length * 44)
   const left = Math.min(state.x, window.innerWidth - MENU_W - 8)
@@ -263,7 +244,10 @@ export function SlashMenu() {
     <div
       className={styles.menu}
       style={{ left, top, width: MENU_W }}
-      onMouseDown={(e) => e.preventDefault()}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      }}
     >
       <div className={styles.header}>
         {locale === 'zh-CN' ? '输入 / 插入块' : 'Type / to insert'}
@@ -302,6 +286,4 @@ export function SlashMenu() {
   )
 }
 
-// Re-export so other files can peek at the registry for testing /
-// documentation without re-importing from the library root.
 export { SLASH_COMMANDS }

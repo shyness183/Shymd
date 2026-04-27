@@ -1,6 +1,15 @@
 export type EditorMode = 'wysiwyg' | 'source' | 'reading'
 
-export type Theme = 'light' | 'dark' | 'morandi' | 'eye-care' | 'system'
+export type Theme =
+  | 'light'
+  | 'dark'
+  | 'morandi'
+  | 'eye-care'
+  | 'monokai'
+  | 'dracula'
+  | 'solarized-light'
+  | 'one-dark'
+  | 'system'
 
 export interface AppSettings {
   fileStoragePath: string

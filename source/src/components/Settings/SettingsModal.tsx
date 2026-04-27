@@ -233,6 +233,10 @@ export function SettingsModal() {
                   <option value="dark">{t('menu.theme.dark')}</option>
                   <option value="morandi">{t('menu.theme.morandi')}</option>
                   <option value="eye-care">{t('menu.theme.eyeCare')}</option>
+                  <option value="monokai">{t('menu.theme.monokai')}</option>
+                  <option value="dracula">{t('menu.theme.dracula')}</option>
+                  <option value="solarized-light">{t('menu.theme.solarizedLight')}</option>
+                  <option value="one-dark">{t('menu.theme.oneDark')}</option>
                   <option value="system">{t('menu.theme.system')}</option>
                 </select>
               </div>

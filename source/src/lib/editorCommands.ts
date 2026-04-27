@@ -46,11 +46,11 @@ function wrapSelection(view: EditorView, prefix: string, suffix: string = prefix
     return
   }
 
-  // Case 3: wrap selection
-  const text = selected || 'text'
+  // Case 3: wrap selection — do nothing when nothing is selected
+  if (!selected) { view.focus(); return }
   view.dispatch({
-    changes: { from, to, insert: `${prefix}${text}${suffix}` },
-    selection: { anchor: from + prefix.length, head: from + prefix.length + text.length },
+    changes: { from, to, insert: `${prefix}${selected}${suffix}` },
+    selection: { anchor: from + prefix.length, head: from + prefix.length + selected.length },
   })
   view.focus()
 }

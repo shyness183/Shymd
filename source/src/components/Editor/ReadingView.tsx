@@ -1,10 +1,11 @@
 import { useMemo, useEffect, useRef } from 'react'
-import { md, renderMermaidBlocks, injectTOC } from '../../lib/markdown'
+import { md, renderMermaidBlocks, injectTOC, resolveRelativeAssets } from '../../lib/markdown'
 import { useAppStore } from '../../stores/useAppStore'
 import styles from './Editor.module.css'
 
 export function ReadingView() {
   const doc = useAppStore((s) => s.doc)
+  const activeAbsolutePath = useAppStore((s) => s.activeAbsolutePath)
   const html = useMemo(() => md.render(doc), [doc])
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -13,7 +14,8 @@ export function ReadingView() {
     if (!el) return
     injectTOC(el)
     renderMermaidBlocks(el)
-  }, [html])
+    resolveRelativeAssets(el, activeAbsolutePath)
+  }, [html, activeAbsolutePath])
 
   // In reading mode, clicks on links open in browser/system
   const onClick = (e: React.MouseEvent) => {
