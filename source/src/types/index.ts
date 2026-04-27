@@ -26,6 +26,10 @@ export interface AppSettings {
    * without breaking image references in existing notes.
    */
   imageStoragePath: string
+  /** When false (default), the floating toolbar is suppressed and the
+   *  user formats via right-click context menu / kebab / shortcuts only.
+   *  When true the legacy floating toolbar still appears on selection. */
+  floatingToolbarEnabled: boolean
 }
 
 export interface FileNode {
@@ -33,13 +37,21 @@ export interface FileNode {
   type: 'file' | 'folder'
   children?: FileNode[]
   content?: string
+  /** Last-modified epoch ms, populated from disk metadata when available.
+   *  Used by the file-tree "排列" dropdown when sort = 'modified'. */
+  modifiedMs?: number
 }
+
+export type SidebarTab = 'files' | 'outline'
+export type FileSort = 'name' | 'modified'
 
 export interface AppState {
   theme: Theme
   sidebarVisible: boolean
   sidebarWidth: number
-  activeTab: 'files' | 'outline'
+  activeTab: SidebarTab
+  fileSort: FileSort
+  setFileSort: (s: FileSort) => void
   editorMode: EditorMode
   doc: string
   /** Basename of the active file, for display in status bar / title bar.

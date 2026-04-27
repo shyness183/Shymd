@@ -1,0 +1,110 @@
+.titlebar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: stretch;
+  height: 36px;
+  background: var(--color-menu-bg);
+  border-bottom: 1px solid var(--color-border);
+  user-select: none;
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: 100;
+}
+
+.left,
+.right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  -webkit-app-region: no-drag;
+}
+
+.right {
+  height: 100%;
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+  padding: 0 4px;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.iconBtn:hover {
+  background: var(--color-hover);
+}
+
+.iconBtnActive {
+  background: var(--color-active);
+}
+
+.modeLabel {
+  font-size: 12px;
+}
+
+.chev {
+  font-size: 9px;
+  opacity: 0.6;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 6px 0 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px 4px 0 0;
+  border-bottom-color: transparent;
+  font-size: 12px;
+  max-width: 240px;
+  -webkit-app-region: no-drag;
+}
+
+.tabActive {
+  background: var(--color-bg);
+}
+
+.tabName {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 6px;
+}
+
+.tabClose {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.tabClose:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}

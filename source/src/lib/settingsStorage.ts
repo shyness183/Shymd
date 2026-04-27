@@ -10,6 +10,8 @@ export const defaultSettings: AppSettings = {
   autoSaveDelay: 1000,
   spellcheck: false,
   imageStoragePath: '',
+  // Default OFF — right-click context menu is the primary path now.
+  floatingToolbarEnabled: false,
 }
 
 export function loadSettings(): AppSettings {

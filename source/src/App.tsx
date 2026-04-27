@@ -5,7 +5,8 @@ import { useAutosave } from './hooks/useAutosave'
 import { useTypewriter } from './hooks/useTypewriter'
 import { useWindowState } from './hooks/useWindowState'
 import { useInitialLoad } from './hooks/useInitialLoad'
-import { MenuBar } from './components/MenuBar/MenuBar'
+import { TitleBar } from './components/TopBar/TitleBar'
+import { Toolbar } from './components/TopBar/Toolbar'
 import { Sidebar } from './components/Sidebar/Sidebar'
 import { Editor } from './components/Editor/Editor'
 import { StatusBar } from './components/StatusBar/StatusBar'
@@ -17,6 +18,7 @@ import { LinkDialog } from './components/LinkDialog/LinkDialog'
 import { MathDialog } from './components/MathDialog/MathDialog'
 import { SlashMenu } from './components/SlashMenu/SlashMenu'
 import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog/ConfirmDeleteDialog'
+import { EditorContextMenu } from './components/EditorContextMenu/EditorContextMenu'
 import { ToastHost } from './components/Toast/Toast'
 import { useLaunchFile } from './hooks/useLaunchFile'
 import styles from './App.module.css'
@@ -51,7 +53,8 @@ export default function App() {
           '--zoom': `${zoom / 100}`,
         } as React.CSSProperties}
       >
-        {!focusMode && <MenuBar />}
+        {!focusMode && <TitleBar />}
+        {!focusMode && <Toolbar />}
         {!focusMode && <Sidebar />}
         <Editor />
         {!focusMode && <StatusBar />}
@@ -64,6 +67,7 @@ export default function App() {
       <MathDialog />
       <SlashMenu />
       <ConfirmDeleteDialog />
+      <EditorContextMenu />
       <ToastHost />
     </>
   )

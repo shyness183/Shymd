@@ -1,0 +1,44 @@
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 36px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0 4px;
+  user-select: none;
+}
+
+.left,
+.right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.btn:hover {
+  background: var(--color-hover);
+}
+
+.chev {
+  font-size: 9px;
+  opacity: 0.6;
+  margin-left: 2px;
+}

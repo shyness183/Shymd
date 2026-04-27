@@ -215,6 +215,25 @@ export function SettingsModal() {
                   'Backed by the system dictionary. Toggle takes effect after you click back into the editor.',
                 )}
               </p>
+
+              <div className={styles.row} style={{ marginTop: 16 }}>
+                <label className={styles.label}>
+                  <input
+                    type="checkbox"
+                    checked={settings.floatingToolbarEnabled}
+                    onChange={(e) => setSettings({ floatingToolbarEnabled: e.target.checked })}
+                  />
+                  <span style={{ marginLeft: 8 }}>
+                    {label('开启浮动工具栏', 'Enable floating toolbar')}
+                  </span>
+                </label>
+              </div>
+              <p className={styles.hint}>
+                {label(
+                  '关闭后通过右键菜单 / 快捷键格式化。默认关闭。',
+                  'When off, format via the right-click menu or shortcuts. Off by default.',
+                )}
+              </p>
             </>
           )}
 

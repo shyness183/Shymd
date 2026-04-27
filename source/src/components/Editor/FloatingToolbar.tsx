@@ -14,7 +14,7 @@ import {
   htmlHighlight, htmlHyperlink, htmlHeading, htmlParagraph,
   htmlQuote, htmlUnorderedList, htmlOrderedList, htmlTaskList,
   htmlCodeBlock, htmlUnderline, htmlInlineMath, htmlImage, htmlClearFormat,
-  getCERoot, getActiveMark, getLastHighlightMark,
+  getCERoot, getActiveMark,
   saveSelection, restoreSelection,
 } from '../../lib/htmlEditorCommands'
 import styles from './FloatingToolbar.module.css'
@@ -88,6 +88,14 @@ const makeParagraphTypes = (mode: Mode) => {
 // ─── Component ─────────────────────────────────────────────────────
 
 export function FloatingToolbar() {
+  // Opt-in via Settings → 浮动工具栏。Default off; right-click context
+  // menu is the primary formatting path.
+  const enabled = useAppStore((s) => s.settings.floatingToolbarEnabled)
+  if (!enabled) return null
+  return <FloatingToolbarInner />
+}
+
+function FloatingToolbarInner() {
   const editorMode = useAppStore((s) => s.editorMode)
   const [pos, setPos] = useState<ToolbarPos | null>(null)
   const [showParagraph, setShowParagraph] = useState(false)
@@ -95,11 +103,6 @@ export function FloatingToolbar() {
   const [hlShade, setHlShade] = useState(30)          // 0-100
   const [hlHue, setHlHue] = useState(50)              // current selected hue
   const toolbarRef = useRef<HTMLDivElement>(null)
-  // Tracks the <mark> element being live-edited inside the picker so
-  // subsequent slider/swatch changes update its colour in place
-  // (htmlHighlight after the first call would no longer find it —
-  // the caret has moved to the ZWSP outside the wrapper).
-  const activeMarkRef = useRef<HTMLElement | null>(null)
 
   const closePopovers = () => {
     setShowParagraph(false)
@@ -186,40 +189,23 @@ export function FloatingToolbar() {
       setShowHighlight(false)
       setPos(null)
     } else {
-      // Snapshot the current selection — opening the picker can let
-      // the contentEditable lose its selection in some browsers, and
-      // we need it intact for the first live-apply call.
+      // Snapshot the selection BEFORE the picker opens — clicking
+      // swatches and especially dragging the slider WILL let the
+      // contentEditable lose its selection. We restore it from the
+      // snapshot when the Apply button commits.
       saveSelection()
-      activeMarkRef.current = null
       setShowHighlight((v) => !v)
       setShowParagraph(false)
     }
   }
 
-  /**
-   * Live-apply highlight at (hue, shade). First call wraps the
-   * selection in a fresh <mark> via htmlHighlight; subsequent calls
-   * directly mutate the same mark's background so dragging the slider
-   * (or clicking another swatch) updates the colour without creating
-   * duplicate wrappers or losing the selection.
-   */
-  const liveApply = (hue: number, shade: number) => {
-    const color = hlColor(hue, shade)
-    if (activeMarkRef.current && activeMarkRef.current.isConnected) {
-      activeMarkRef.current.style.background = color
-      return
-    }
-    // First live-apply this session — re-anchor the snapshotted
-    // selection (peek, don't consume — it stays valid as a fallback).
-    restoreSelection(false)
-    htmlHighlight(color)
-    activeMarkRef.current = getLastHighlightMark()
-  }
-
   const applyColor = (hue: number, shade: number) => {
-    // Commit + close. Re-apply once in case nothing has been live-applied
-    // yet (e.g. user clicked Apply without touching the slider/swatches).
-    liveApply(hue, shade)
+    // Restore the original selection that was snapshotted when the
+    // picker opened (the slider drag almost certainly clobbered it),
+    // then wrap.
+    restoreSelection()
+    const color = hlColor(hue, shade)
+    htmlHighlight(color)
     setHlHue(hue)
     setHlShade(shade)
     setShowHighlight(false)
@@ -310,11 +296,10 @@ export function FloatingToolbar() {
                   title={c.name}
                   onMouseDown={(e) => {
                     e.preventDefault()
+                    // Click only previews the hue — final apply is via
+                    // the "应用此颜色" button (per user's bug-2 feedback:
+                    // swatch click should NOT auto-apply).
                     setHlHue(c.hue)
-                    // Live-apply: the user sees the colour change on the
-                    // selection immediately. They can keep clicking other
-                    // swatches or dragging the shade slider to fine-tune.
-                    liveApply(c.hue, hlShade)
                   }}
                 />
               ))}
@@ -328,13 +313,6 @@ export function FloatingToolbar() {
                 min={0}
                 max={100}
                 value={hlShade}
-                onInput={(e) => {
-                  const v = Number((e.target as HTMLInputElement).value)
-                  setHlShade(v)
-                  // Live-apply on every drag tick so the user sees the
-                  // depth change in real time on the selected text.
-                  liveApply(hlHue, v)
-                }}
                 onChange={(e) => setHlShade(Number(e.target.value))}
                 style={{
                   background: `linear-gradient(to right, ${hlColor(hlHue, 0)}, ${hlColor(hlHue, 100)})`,

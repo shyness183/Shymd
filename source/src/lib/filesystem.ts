@@ -32,12 +32,22 @@ export async function readDirTree(dirPath: string): Promise<FileNode[]> {
       const children = await readDirTree(fullPath)
       nodes.push({ name: entry.name, type: 'folder', children })
     } else if (entry.name.endsWith('.md')) {
-      // Only load .md files into the tree
-      nodes.push({ name: entry.name, type: 'file' })
+      // Only load .md files into the tree. Capture mtime so the
+      // sidebar's "按修改时间排列" option has data to work with.
+      let modifiedMs: number | undefined
+      try {
+        const stat = await fs.stat(fullPath)
+        if (stat.mtime instanceof Date) modifiedMs = stat.mtime.getTime()
+        else if (typeof stat.mtime === 'number') modifiedMs = stat.mtime
+      } catch {
+        // permission errors etc. — leave undefined; sort falls back to name
+      }
+      nodes.push({ name: entry.name, type: 'file', modifiedMs })
     }
   }
 
-  // Sort: folders first, then alphabetical
+  // Default disk order: folders first, then alphabetical. The sidebar
+  // re-sorts at render time according to the user's `fileSort` pref.
   nodes.sort((a, b) => {
     if (a.type !== b.type) return a.type === 'folder' ? -1 : 1
     return a.name.localeCompare(b.name)

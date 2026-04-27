@@ -4,8 +4,24 @@ import { useLocale } from '../../hooks/useLocale'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { uniqueName } from '../../lib/fileTreeUtils'
 import { showDeleteDialog } from '../../lib/confirmDeleteDialog'
-import type { FileNode } from '../../types'
+import type { FileNode, FileSort } from '../../types'
 import styles from './FileTree.module.css'
+
+/**
+ * Sort a sibling list according to the user's "排列" preference.
+ * Folders always come first; among files, either alphabetical or
+ * descending modified-time. Falls back to alphabetical if mtime is
+ * missing on either side.
+ */
+function sortSiblings(nodes: FileNode[], mode: FileSort): FileNode[] {
+  return [...nodes].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1
+    if (mode === 'modified' && a.modifiedMs != null && b.modifiedMs != null) {
+      return b.modifiedMs - a.modifiedMs
+    }
+    return a.name.localeCompare(b.name)
+  })
+}
 
 interface CtxState {
   x: number
@@ -70,6 +86,7 @@ interface FileTreeItemProps {
   filter: string
   selectedPaths: string[][]
   onSelectToggle: (path: string[], additive: boolean) => void
+  sortMode: FileSort
 }
 
 function matchesFilter(node: FileNode, filter: string): boolean {
@@ -102,6 +119,7 @@ function FileTreeItem({
   filter,
   selectedPaths,
   onSelectToggle,
+  sortMode,
 }: FileTreeItemProps) {
   const [expanded, setExpanded] = useState(true)
   const [dropOver, setDropOver] = useState(false)
@@ -180,6 +198,13 @@ function FileTreeItem({
             onContext(e, path, 'folder')
           }}
         >
+          {Array.from({ length: depth }, (_, i) => (
+            <span
+              key={i}
+              className={styles.indentGuide}
+              style={{ left: 12 + i * 16 + 7 }}
+            />
+          ))}
           <span className={styles.arrow}>{expanded ? '▾' : '▸'}</span>
           <span className={styles.icon}>📁</span>
           {isEditing ? (
@@ -193,7 +218,7 @@ function FileTreeItem({
           )}
         </div>
         {expanded &&
-          node.children?.map((child) => (
+          sortSiblings(node.children ?? [], sortMode).map((child) => (
             <FileTreeItem
               key={child.name}
               node={child}
@@ -209,6 +234,7 @@ function FileTreeItem({
               filter={filter}
               selectedPaths={selectedPaths}
               onSelectToggle={onSelectToggle}
+              sortMode={sortMode}
             />
           ))}
       </div>
@@ -236,6 +262,13 @@ function FileTreeItem({
         onContext(e, path, 'file')
       }}
     >
+      {Array.from({ length: depth }, (_, i) => (
+        <span
+          key={i}
+          className={styles.indentGuide}
+          style={{ left: 12 + i * 16 + 7 }}
+        />
+      ))}
       <span className={styles.icon}>📄</span>
       {isEditing ? (
         <RenameInput
@@ -255,6 +288,7 @@ export function FileTree({ filter = '' }: { filter?: string }) {
   const { t } = useLocale()
   const activeFilePath = useAppStore((s) => s.activeFilePath)
   const files = useAppStore((s) => s.files)
+  const fileSort = useAppStore((s) => s.fileSort)
   const openFileByPath = useAppStore((s) => s.openFileByPath)
   const createFile = useAppStore((s) => s.createFile)
   const createFolder = useAppStore((s) => s.createFolder)
@@ -485,7 +519,7 @@ export function FileTree({ filter = '' }: { filter?: string }) {
       }}
       style={{ minHeight: '100%' }}
     >
-      {files.map((node) => (
+      {sortSiblings(files, fileSort).map((node) => (
         <FileTreeItem
           key={node.name}
           node={node}
@@ -504,6 +538,7 @@ export function FileTree({ filter = '' }: { filter?: string }) {
           filter={filter}
           selectedPaths={selectedPaths}
           onSelectToggle={toggleSelectPath}
+          sortMode={fileSort}
         />
       ))}
       {ctx && (

@@ -13,6 +13,7 @@ import {
   pathIsPrefix,
 } from '../lib/fileTreeUtils'
 import { loadSettings, saveSettings } from '../lib/settingsStorage'
+import { loadPrefs, savePrefs } from '../lib/prefsStorage'
 import { isTauri, writeFileText, createDir, moveToTrash, renamePath, readFileText } from '../lib/filesystem'
 import { showToast } from '../components/Toast/Toast'
 
@@ -83,19 +84,25 @@ function normSlash(s: string): string {
   return s.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
+// Hydrate persistent UI prefs from localStorage. Without this, every
+// launch resets theme / sidebar / mode / zoom etc. (the bug user reported).
+const _prefs = loadPrefs()
+
 export const useAppStore = create<AppState>((set, get) => ({
-  theme: 'light',
-  sidebarVisible: true,
-  sidebarWidth: 240,
-  activeTab: 'files',
-  editorMode: 'wysiwyg',
+  theme: _prefs.theme,
+  sidebarVisible: _prefs.sidebarVisible,
+  sidebarWidth: _prefs.sidebarWidth,
+  activeTab: _prefs.activeTab,
+  editorMode: _prefs.editorMode,
   doc: initialDoc,
   activeFile: initialActiveFile,
   activeFilePath: initialActivePath,
   activeAbsolutePath: null,
-  focusMode: false,
-  typewriterMode: false,
-  zoom: 100,
+  focusMode: _prefs.focusMode,
+  typewriterMode: _prefs.typewriterMode,
+  zoom: _prefs.zoom,
+  fileSort: _prefs.fileSort,
+  setFileSort: (s) => set({ fileSort: s }),
   files: initialFiles,
 
   toggleTheme: () =>
@@ -549,3 +556,42 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   clearSelectedPaths: () => set({ selectedPaths: [] }),
 }))
+
+// ── Persistence: auto-save UI prefs whenever any tracked field changes.
+// Subscribed once at module load — runs for the lifetime of the page.
+// Cheap: only writes when a tracked key actually changed (shallow diff
+// driven by zustand's update notification).
+;(() => {
+  let last = {
+    theme: _prefs.theme,
+    sidebarVisible: _prefs.sidebarVisible,
+    sidebarWidth: _prefs.sidebarWidth,
+    activeTab: _prefs.activeTab,
+    editorMode: _prefs.editorMode,
+    focusMode: _prefs.focusMode,
+    typewriterMode: _prefs.typewriterMode,
+    zoom: _prefs.zoom,
+    fileSort: _prefs.fileSort,
+  }
+  useAppStore.subscribe((state) => {
+    const next = {
+      theme: state.theme,
+      sidebarVisible: state.sidebarVisible,
+      sidebarWidth: state.sidebarWidth,
+      activeTab: state.activeTab,
+      editorMode: state.editorMode,
+      focusMode: state.focusMode,
+      typewriterMode: state.typewriterMode,
+      zoom: state.zoom,
+      fileSort: state.fileSort,
+    }
+    let changed = false
+    for (const k of Object.keys(next) as (keyof typeof next)[]) {
+      if (next[k] !== last[k]) { changed = true; break }
+    }
+    if (changed) {
+      last = next
+      savePrefs(next)
+    }
+  })
+})()
