@@ -76,10 +76,16 @@ th {
   font-weight: 600;
 }
 
-/* Mark/highlight ==text== */
+/* Mark/highlight ==text==
+   The 6 preset highlight colours we apply (yellow / green / blue /
+   pink / purple / orange) are all light pastels — readable on a light
+   page, but the inherited theme text colour on dark themes (≈ #F8F8F2,
+   #ABB2BF, etc.) becomes invisible against them. Force a fixed dark
+   text colour inside <mark> so highlight always stays legible
+   regardless of the active theme. */
 mark {
   background: var(--color-selection);
-  color: inherit;
+  color: #1A1A1A;
   padding: 0.1em 0.2em;
   border-radius: 2px;
 }

@@ -1,10 +1,8 @@
-/* Two-row top bar (TitleBar + Toolbar) replaces the old MenuBar.
-   Each row is 36px. Status bar height comes from --statusbar-height.
-   Grid layout (non-focus mode):
-     row 1: TitleBar  (spans both columns)
-     row 2: Toolbar   (spans both columns)
-     row 3: Sidebar | Editor
-     row 4: StatusBar (spans both columns) */
+/* Two-row top chrome.
+     row 1: TitleBar           (spans both columns)
+     row 2: SidebarTabsRow | Toolbar
+     row 3: Sidebar       | Editor
+     row 4: StatusBar          (spans both columns) */
 .app {
   display: grid;
   grid-template-rows: 36px 36px 1fr var(--statusbar-height);
@@ -20,11 +18,9 @@
   grid-template-columns: 1fr;
 }
 
-/* TitleBar (1st), Toolbar (2nd), StatusBar (5th) need to span both
-   columns. Sidebar (3rd) and Editor (4th) share row 3 in their natural
-   column placement. */
+/* TitleBar (1st) and StatusBar (6th) span both columns. The rest fall
+   naturally into single cells via grid auto-placement. */
 .app > :nth-child(1),
-.app > :nth-child(2),
-.app > :nth-child(5) {
+.app > :nth-child(6) {
   grid-column: 1 / -1;
 }

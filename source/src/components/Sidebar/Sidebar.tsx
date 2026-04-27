@@ -1,8 +1,6 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, useState } from 'react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useLocale } from '../../hooks/useLocale'
-import { SidebarTabs } from './SidebarTabs'
-import { SearchBox } from './SearchBox'
 import { FileTree } from './FileTree'
 import { OutlineTree } from './OutlineTree'
 import { PopoverMenu, type PopoverMenuItem } from '../PopoverMenu/PopoverMenu'
@@ -27,7 +25,7 @@ export function Sidebar() {
   const createFolder = useAppStore((s) => s.createFolder)
   const fileSort = useAppStore((s) => s.fileSort)
   const setFileSort = useAppStore((s) => s.setFileSort)
-  const [filter, setFilter] = useState('')
+  const filter = useAppStore((s) => s.searchQuery)
   const sortBtnRef = useRef<HTMLButtonElement>(null)
   const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null)
   const sortItems: PopoverMenuItem[] = [
@@ -100,7 +98,6 @@ export function Sidebar() {
 
   return (
     <div className={styles.sidebar}>
-      <SidebarTabs />
       {activeTab === 'files' && (
         <div className={styles.filesToolbar}>
           <button
@@ -159,7 +156,6 @@ export function Sidebar() {
           )}
         </div>
       )}
-      <SearchBox value={filter} onChange={setFilter} />
       <div
         ref={contentRef}
         className={styles.content}

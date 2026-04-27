@@ -1,13 +1,17 @@
+import { useRef, useState, useEffect } from 'react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useLocale } from '../../hooks/useLocale'
-import { newFile } from '../../lib/fileActions'
 import { WindowControls } from './WindowControls'
 import styles from './TitleBar.module.css'
 
 /**
- * Top row of the redesigned chrome.
+ * Top row of the redesigned chrome — slimmer after user feedback.
  *
- *   [☰][📁][🔍]   [filename ×][+]   [Mode ▾] [— ▢ ×]
+ *   [☰][📁][🔍]                              [— ▢ ×]
+ *
+ * The current-file tab + `+ new file` button moved DOWN to row 2
+ * (next to the kebab) per user request — keeps row 1 strictly for
+ * window-level chrome.
  *
  * The whole bar is `data-tauri-drag-region` so the user can drag the
  * frameless window from anywhere except the buttons (which all set
@@ -19,13 +23,45 @@ export function TitleBar() {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const activeTab = useAppStore((s) => s.activeTab)
   const setActiveTab = useAppStore((s) => s.setActiveTab)
-  const activeFile = useAppStore((s) => s.activeFile)
-  const setActiveFile = useAppStore((s) => s.setActiveFile)
-  const setFindOpen = useAppStore((s) => s.setFindOpen)
+  const searchQuery = useAppStore((s) => s.searchQuery)
+  const setSearchQuery = useAppStore((s) => s.setSearchQuery)
 
-  const closeFile = () => {
-    setActiveFile('', '', [], null)
+  // Search popover (file-name filter, NOT find/replace inside the doc)
+  const searchBtnRef = useRef<HTMLButtonElement>(null)
+  const [searchPos, setSearchPos] = useState<{ x: number; y: number } | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const openSearch = () => {
+    if (!searchBtnRef.current) return
+    const rect = searchBtnRef.current.getBoundingClientRect()
+    setSearchPos({ x: rect.left, y: rect.bottom + 4 })
+    if (!sidebarVisible) toggleSidebar()
+    setActiveTab('files')
   }
+
+  // Auto-focus the input when the popover opens.
+  useEffect(() => {
+    if (searchPos) inputRef.current?.focus()
+  }, [searchPos])
+
+  // Outside click → close popover.
+  useEffect(() => {
+    if (!searchPos) return
+    const onDown = (e: MouseEvent) => {
+      const tgt = e.target as Node
+      if (
+        searchBtnRef.current?.contains(tgt) ||
+        inputRef.current?.contains(tgt) ||
+        (tgt as Element)?.closest?.(`.${styles.searchPopover}`)
+      ) return
+      setSearchPos(null)
+    }
+    const t = window.setTimeout(() => document.addEventListener('mousedown', onDown), 0)
+    return () => {
+      window.clearTimeout(t)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [searchPos])
 
   return (
     <div className={styles.titlebar} data-tauri-drag-region>
@@ -55,9 +91,10 @@ export function TitleBar() {
           </svg>
         </button>
         <button
-          className={styles.iconBtn}
-          onClick={() => setFindOpen(true, 'find')}
-          title={t('menu.edit.find')}
+          ref={searchBtnRef}
+          className={`${styles.iconBtn}${searchPos ? ' ' + styles.iconBtnActive : ''}`}
+          onClick={openSearch}
+          title="搜索文件"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
             <circle cx="7" cy="7" r="4.5" />
@@ -66,37 +103,47 @@ export function TitleBar() {
         </button>
       </div>
 
-      {/* ── Center: tab strip ── */}
-      <div className={styles.tabs} data-tauri-drag-region>
-        {activeFile && (
-          <div className={`${styles.tab} ${styles.tabActive}`}>
-            <span className={styles.tabName}>{activeFile}</span>
-            <button
-              className={styles.tabClose}
-              onClick={closeFile}
-              title="关闭"
-              aria-label="close"
-            >×</button>
-          </div>
-        )}
-        <button
-          className={styles.iconBtn}
-          onClick={() => newFile()}
-          title={t('menu.file.new')}
-          aria-label={t('menu.file.new')}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <line x1="7" y1="2" x2="7" y2="12" />
-            <line x1="2" y1="7" x2="12" y2="7" />
-          </svg>
-        </button>
-      </div>
+      {/* Drag handle fills the empty middle so the user can grab anywhere */}
+      <div className={styles.drag} data-tauri-drag-region />
 
-      {/* ── Right: window controls only — the mode toggle lives in
-           the second row (Toolbar) per user feedback. ── */}
+      {/* ── Right: window controls only ── */}
       <div className={styles.right}>
         <WindowControls />
       </div>
+
+      {/* Search popover — anchored under the [🔍] button, contains the
+          single source of truth for the file-tree filter (store.searchQuery). */}
+      {searchPos && (
+        <div
+          className={styles.searchPopover}
+          style={{ left: searchPos.x, top: searchPos.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            className={styles.searchInput}
+            placeholder="搜索文件名…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setSearchQuery('')
+                setSearchPos(null)
+              }
+              if (e.key === 'Enter') setSearchPos(null)
+            }}
+          />
+          {searchQuery && (
+            <button
+              className={styles.searchClear}
+              onClick={() => setSearchQuery('')}
+              title="清空"
+              aria-label="clear"
+            >×</button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

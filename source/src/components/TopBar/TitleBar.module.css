@@ -11,6 +11,58 @@
   z-index: 100;
 }
 
+.drag {
+  -webkit-app-region: drag;
+}
+
+.searchPopover {
+  position: fixed;
+  z-index: 2001;
+  background: var(--color-menu-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 240px;
+}
+
+.searchInput {
+  flex: 1;
+  height: 24px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-text);
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--color-accent);
+}
+
+.searchClear {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.searchClear:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
 .left,
 .right {
   display: flex;

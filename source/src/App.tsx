@@ -7,6 +7,7 @@ import { useWindowState } from './hooks/useWindowState'
 import { useInitialLoad } from './hooks/useInitialLoad'
 import { TitleBar } from './components/TopBar/TitleBar'
 import { Toolbar } from './components/TopBar/Toolbar'
+import { SidebarTabsRow } from './components/TopBar/SidebarTabsRow'
 import { Sidebar } from './components/Sidebar/Sidebar'
 import { Editor } from './components/Editor/Editor'
 import { StatusBar } from './components/StatusBar/StatusBar'
@@ -54,6 +55,7 @@ export default function App() {
         } as React.CSSProperties}
       >
         {!focusMode && <TitleBar />}
+        {!focusMode && <SidebarTabsRow />}
         {!focusMode && <Toolbar />}
         {!focusMode && <Sidebar />}
         <Editor />

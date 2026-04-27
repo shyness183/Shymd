@@ -52,6 +52,11 @@ export interface AppState {
   activeTab: SidebarTab
   fileSort: FileSort
   setFileSort: (s: FileSort) => void
+  /** Free-text query that filters the file tree / outline tree. Lifted
+   *  out of <Sidebar>'s local state so the title-bar 🔍 search popover
+   *  can write to it from above. */
+  searchQuery: string
+  setSearchQuery: (q: string) => void
   editorMode: EditorMode
   doc: string
   /** Basename of the active file, for display in status bar / title bar.

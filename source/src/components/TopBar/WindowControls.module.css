@@ -1,12 +1,14 @@
 .controls {
   display: flex;
   align-items: stretch;
+  height: 100%;
   -webkit-app-region: no-drag;
 }
 
 .btn {
-  width: 44px;
+  width: 46px;
   height: 100%;
+  align-self: stretch;
   background: transparent;
   border: none;
   outline: none;
@@ -16,13 +18,27 @@
   align-items: center;
   justify-content: center;
   padding: 0;
+  margin: 0;
+  border-radius: 0;
+  transition: background 0.08s linear, color 0.08s linear;
 }
 
+/* The hover surface fills the full button rectangle (no gap to the
+   chrome border) — Windows 11 style: subtle for min/max, vivid red for
+   close. Active state uses a slightly darker shade so the press
+   feedback is visible. */
 .btn:hover {
   background: var(--color-hover);
+}
+.btn:active {
+  background: var(--color-active);
 }
 
 .close:hover {
   background: #E81123;
-  color: #fff;
+  color: #FFFFFF;
+}
+.close:active {
+  background: #C50E1F;
+  color: #FFFFFF;
 }

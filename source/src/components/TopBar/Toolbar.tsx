@@ -10,21 +10,22 @@ import { isTauri } from '../../lib/filesystem'
 import styles from './Toolbar.module.css'
 
 /**
- * Second row of the redesigned chrome — minimal version.
+ * Row 2, column 2 — the EDITOR-side toolbar.
  *
- *                                   [👁 阅读 ⇄ ✎ 编辑] [⋮]
+ *   [filename ×] [+]                                            [⋮]
  *
- * The 新建笔记 / 新建文件夹 / 排列 / 路径 controls were moved INTO
- * the sidebar's files-mode header per user feedback (they belong with
- * the file tree they affect, not in a global chrome row).
+ * Tab + new-file moved here from row 1 per user feedback. The 编辑/阅读
+ * quick toggle was deleted — the status bar already shows current mode.
  *
- * The kebab `⋮` still carries every command that used to live in the
- * legacy 文件 / 编辑 / 段落 / 格式 / 视图 / 主题 / 帮助 menubar.
+ * The kebab `⋮` carries every command that used to live in the legacy
+ * 文件 / 编辑 / 段落 / 格式 / 视图 / 主题 / 帮助 menubar.
  */
 export function Toolbar() {
   const { t, locale, setLocale } = useLocale()
   const editorMode = useAppStore((s) => s.editorMode)
   const setEditorMode = useAppStore((s) => s.setEditorMode)
+  const activeFile = useAppStore((s) => s.activeFile)
+  const setActiveFile = useAppStore((s) => s.setActiveFile)
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen)
   const setHelpModal = useAppStore((s) => s.setHelpModal)
   const theme = useAppStore((s) => s.theme)
@@ -181,22 +182,35 @@ export function Toolbar() {
     { label: t('menu.file.preferences'), shortcut: 'Ctrl+,', onClick: () => setSettingsOpen(true) },
   ]
 
-  // Quick edit ↔ reading toggle (ignores source mode — by design per Q3.4).
-  const onModeToggle = () => {
-    setEditorMode(editorMode === 'reading' ? 'wysiwyg' : 'reading')
-  }
+  const closeFile = () => setActiveFile('', '', [], null)
 
   return (
     <div className={styles.toolbar}>
-      <div className={styles.left} />
-      <div className={styles.right}>
+      <div className={styles.left}>
+        {activeFile && (
+          <div className={styles.tab}>
+            <span className={styles.tabName}>{activeFile}</span>
+            <button
+              className={styles.tabClose}
+              onClick={closeFile}
+              title="关闭"
+              aria-label="close"
+            >×</button>
+          </div>
+        )}
         <button
           className={styles.btn}
-          onClick={onModeToggle}
-          title={editorMode === 'reading' ? '切换到编辑' : '切换到阅读'}
+          onClick={() => newFile()}
+          title={t('menu.file.new')}
+          aria-label={t('menu.file.new')}
         >
-          {editorMode === 'reading' ? '✎ 编辑' : '👁 阅读'}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <line x1="7" y1="2" x2="7" y2="12" />
+            <line x1="2" y1="7" x2="12" y2="7" />
+          </svg>
         </button>
+      </div>
+      <div className={styles.right}>
         <button
           ref={kebabBtnRef}
           className={styles.btn}

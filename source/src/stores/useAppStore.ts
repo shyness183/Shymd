@@ -103,6 +103,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   zoom: _prefs.zoom,
   fileSort: _prefs.fileSort,
   setFileSort: (s) => set({ fileSort: s }),
+  searchQuery: '',
+  setSearchQuery: (q) => set({ searchQuery: q }),
   files: initialFiles,
 
   toggleTheme: () =>
