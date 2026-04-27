@@ -76,18 +76,28 @@ th {
   font-weight: 600;
 }
 
-/* Mark/highlight ==text==
-   The 6 preset highlight colours we apply (yellow / green / blue /
-   pink / purple / orange) are all light pastels — readable on a light
-   page, but the inherited theme text colour on dark themes (≈ #F8F8F2,
-   #ABB2BF, etc.) becomes invisible against them. Force a fixed dark
-   text colour inside <mark> so highlight always stays legible
-   regardless of the active theme. */
+/* Mark / highlight.
+   Two cases that need different text colours:
+   1. Default <mark> (e.g. `==text==` source markdown) — uses the
+      theme's --color-selection as the background. On dark themes that
+      ends up nearly black; we MUST keep the theme's regular text
+      colour so it stays readable.
+   2. <mark style="background: …"> — applied via the preset colour
+      picker (yellow / green / blue / pink / purple / orange). All 6
+      are light pastels, so on dark themes the inherited light text
+      colour is invisible against them. Force a fixed dark text colour
+      ONLY for inline-styled marks. */
 mark {
   background: var(--color-selection);
-  color: #1A1A1A;
+  color: inherit;
   padding: 0.1em 0.2em;
   border-radius: 2px;
+}
+mark[style] {
+  /* The presence of an inline style means the user picked a preset
+     pastel colour — those are always light, so dark text is required
+     for legibility on every theme. */
+  color: #1A1A1A;
 }
 
 /* Task list checkboxes */

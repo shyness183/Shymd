@@ -7,3 +7,12 @@
   align-items: stretch;
   overflow: hidden;
 }
+
+/* The <SidebarTabs> root is the only direct child — make it span
+   the whole row width so its `flex: 1` tab buttons split evenly.
+   Without this, .tabs hugs its content and "文件" / "大纲" end up
+   crammed together in the screenshot bug. */
+.row > * {
+  flex: 1;
+  display: flex;
+}
