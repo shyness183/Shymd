@@ -1,3 +1,4 @@
+
 # Shymd
 
 一款轻量、免费、开源的 Markdown 桌面编辑器，灵感来自 [Typora](https://typora.io/)。  
@@ -5,7 +6,7 @@
 
 ![Shymd 界面截图](assets/screenshot.png)
 
-![Shymd 界面截图](assets/screenshot01.png)
+<img width="1797" height="1191" alt="2974d7950c17798706684f0fda5b5b25" src="https://github.com/user-attachments/assets/abf70604-5be6-4471-a03f-1903d922e239" />
 
 * * *
 
