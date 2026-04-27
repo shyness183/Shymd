@@ -2,8 +2,6 @@ import { useAppStore } from '../../stores/useAppStore'
 import { useLocale } from '../../hooks/useLocale'
 import { newFile } from '../../lib/fileActions'
 import { WindowControls } from './WindowControls'
-import { useState, useRef } from 'react'
-import { PopoverMenu, type PopoverMenuItem } from '../PopoverMenu/PopoverMenu'
 import styles from './TitleBar.module.css'
 
 /**
@@ -21,42 +19,9 @@ export function TitleBar() {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const activeTab = useAppStore((s) => s.activeTab)
   const setActiveTab = useAppStore((s) => s.setActiveTab)
-  const editorMode = useAppStore((s) => s.editorMode)
-  const setEditorMode = useAppStore((s) => s.setEditorMode)
   const activeFile = useAppStore((s) => s.activeFile)
   const setActiveFile = useAppStore((s) => s.setActiveFile)
   const setFindOpen = useAppStore((s) => s.setFindOpen)
-
-  // Mode dropdown
-  const [modeOpen, setModeOpen] = useState(false)
-  const modeBtnRef = useRef<HTMLButtonElement>(null)
-  const [modeAnchor, setModeAnchor] = useState<{ x: number; y: number } | null>(null)
-
-  const openModeMenu = () => {
-    if (!modeBtnRef.current) return
-    const rect = modeBtnRef.current.getBoundingClientRect()
-    setModeAnchor({ x: rect.right - 240, y: rect.bottom + 4 })
-    setModeOpen(true)
-  }
-
-  const modeItems: PopoverMenuItem[] = [
-    {
-      label: t('menu.view.wysiwyg'),
-      checked: editorMode === 'wysiwyg',
-      onClick: () => setEditorMode('wysiwyg'),
-    },
-    {
-      label: t('menu.view.sourceMode'),
-      shortcut: 'Ctrl+/',
-      checked: editorMode === 'source',
-      onClick: () => setEditorMode('source'),
-    },
-    {
-      label: t('menu.view.readingMode'),
-      checked: editorMode === 'reading',
-      onClick: () => setEditorMode('reading'),
-    },
-  ]
 
   const closeFile = () => {
     setActiveFile('', '', [], null)
@@ -127,32 +92,11 @@ export function TitleBar() {
         </button>
       </div>
 
-      {/* ── Right: mode dropdown + window controls ── */}
+      {/* ── Right: window controls only — the mode toggle lives in
+           the second row (Toolbar) per user feedback. ── */}
       <div className={styles.right}>
-        <button
-          ref={modeBtnRef}
-          className={styles.iconBtn}
-          onClick={openModeMenu}
-          title="切换编辑器模式"
-        >
-          <span className={styles.modeLabel}>
-            {editorMode === 'wysiwyg' && '编辑'}
-            {editorMode === 'source' && '源码'}
-            {editorMode === 'reading' && '阅读'}
-          </span>
-          <span className={styles.chev}>▾</span>
-        </button>
         <WindowControls />
       </div>
-
-      {modeOpen && modeAnchor && (
-        <PopoverMenu
-          items={modeItems}
-          x={modeAnchor.x}
-          y={modeAnchor.y}
-          onClose={() => setModeOpen(false)}
-        />
-      )}
     </div>
   )
 }

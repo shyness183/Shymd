@@ -84,7 +84,14 @@ export function PopoverMenu({ items, x, y, onClose, className }: PopoverMenuProp
     setHoverIdx(idx)
     if (item.children) {
       const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect()
-      setSubmenuPos({ x: rect.right - 4, y: rect.top })
+      // Default: open to the RIGHT. If that would clip the submenu off
+      // the right viewport edge, flip to the LEFT side of the parent
+      // row instead — keeps the kebab menu (which sits at the very
+      // right of the chrome) usable.
+      const right = rect.right - 4
+      const wouldOverflow = right + MENU_WIDTH > window.innerWidth - 8
+      const x = wouldOverflow ? rect.left - MENU_WIDTH + 4 : right
+      setSubmenuPos({ x, y: rect.top })
     } else {
       setSubmenuPos(null)
     }

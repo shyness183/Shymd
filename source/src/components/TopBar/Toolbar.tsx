@@ -10,22 +10,21 @@ import { isTauri } from '../../lib/filesystem'
 import styles from './Toolbar.module.css'
 
 /**
- * Second row of the redesigned chrome.
+ * Second row of the redesigned chrome — minimal version.
  *
- *   [+笔记] [+文件夹] [排列▾]    [编辑/阅读 ⇄] [⋮]
+ *                                   [👁 阅读 ⇄ ✎ 编辑] [⋮]
  *
- * The kebab `⋮` carries every command that used to live in the
- * legacy 文件 / 编辑 / 段落 / 格式 / 视图 / 主题 / 帮助 menubar — flattened
- * into one popover with submenus.
+ * The 新建笔记 / 新建文件夹 / 排列 / 路径 controls were moved INTO
+ * the sidebar's files-mode header per user feedback (they belong with
+ * the file tree they affect, not in a global chrome row).
+ *
+ * The kebab `⋮` still carries every command that used to live in the
+ * legacy 文件 / 编辑 / 段落 / 格式 / 视图 / 主题 / 帮助 menubar.
  */
 export function Toolbar() {
   const { t, locale, setLocale } = useLocale()
   const editorMode = useAppStore((s) => s.editorMode)
   const setEditorMode = useAppStore((s) => s.setEditorMode)
-  const fileSort = useAppStore((s) => s.fileSort)
-  const setFileSort = useAppStore((s) => s.setFileSort)
-  const createFile = useAppStore((s) => s.createFile)
-  const createFolder = useAppStore((s) => s.createFolder)
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen)
   const setHelpModal = useAppStore((s) => s.setHelpModal)
   const theme = useAppStore((s) => s.theme)
@@ -42,21 +41,6 @@ export function Toolbar() {
   const openFileByAbsolutePath = useAppStore((s) => s.openFileByAbsolutePath)
   const clearRecentFiles = useAppStore((s) => s.clearRecentFiles)
   const activeAbsolutePath = useAppStore((s) => s.activeAbsolutePath)
-
-  // ── Sort dropdown ──
-  const sortBtnRef = useRef<HTMLButtonElement>(null)
-  const [sortOpen, setSortOpen] = useState(false)
-  const [sortAnchor, setSortAnchor] = useState<{ x: number; y: number } | null>(null)
-  const openSort = () => {
-    if (!sortBtnRef.current) return
-    const r = sortBtnRef.current.getBoundingClientRect()
-    setSortAnchor({ x: r.left, y: r.bottom + 4 })
-    setSortOpen(true)
-  }
-  const sortItems: PopoverMenuItem[] = [
-    { label: '按名称排列', checked: fileSort === 'name', onClick: () => setFileSort('name') },
-    { label: '按修改时间排列', checked: fileSort === 'modified', onClick: () => setFileSort('modified') },
-  ]
 
   // ── Kebab dropdown — every legacy command, with submenus ──
   const kebabBtnRef = useRef<HTMLButtonElement>(null)
@@ -204,30 +188,7 @@ export function Toolbar() {
 
   return (
     <div className={styles.toolbar}>
-      <div className={styles.left}>
-        <button className={styles.btn} onClick={() => createFile([], '未命名.md')} title="新建笔记">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
-            <path d="M3 1.5 L8 1.5 L11.5 5 L11.5 12.5 L3 12.5 Z" />
-            <line x1="5.5" y1="7.5" x2="9" y2="7.5" />
-            <line x1="7.25" y1="5.75" x2="7.25" y2="9.25" />
-          </svg>
-        </button>
-        <button className={styles.btn} onClick={() => createFolder([], '未命名文件夹')} title="新建文件夹">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
-            <path d="M1.5 4 L5.5 4 L7 5.5 L12.5 5.5 L12.5 11.5 L1.5 11.5 Z" />
-            <line x1="6" y1="8.5" x2="9" y2="8.5" />
-            <line x1="7.5" y1="7" x2="7.5" y2="10" />
-          </svg>
-        </button>
-        <button ref={sortBtnRef} className={styles.btn} onClick={openSort} title="排列">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
-            <line x1="2" y1="3.5" x2="12" y2="3.5" />
-            <line x1="2" y1="7" x2="9" y2="7" />
-            <line x1="2" y1="10.5" x2="6" y2="10.5" />
-          </svg>
-          <span className={styles.chev}>▾</span>
-        </button>
-      </div>
+      <div className={styles.left} />
       <div className={styles.right}>
         <button
           className={styles.btn}
@@ -245,9 +206,6 @@ export function Toolbar() {
           ⋮
         </button>
       </div>
-      {sortOpen && sortAnchor && (
-        <PopoverMenu items={sortItems} x={sortAnchor.x} y={sortAnchor.y} onClose={() => setSortOpen(false)} />
-      )}
       {kebabOpen && kebabAnchor && (
         <PopoverMenu items={kebabItems} x={kebabAnchor.x} y={kebabAnchor.y} onClose={() => setKebabOpen(false)} />
       )}

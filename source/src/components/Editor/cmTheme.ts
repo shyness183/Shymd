@@ -4,40 +4,46 @@ import { tags } from '@lezer/highlight'
 
 /* ---------- Light theme ---------- */
 
+// All CM theme colours route through CSS custom properties so source
+// mode visually adopts whichever of the 8 themes (light / dark /
+// morandi / eye-care / monokai / dracula / solarized-light / one-dark)
+// the user picks. Without this, source mode looked permanently
+// "default light" or "default dark" regardless of theme choice — which
+// is what the user reported as 「字体不匹配」.
 const lightEditorTheme = EditorView.theme({
   '&': {
-    backgroundColor: '#FAFAF9',
-    color: '#2C2C2C',
+    backgroundColor: 'var(--color-bg)',
+    color: 'var(--color-text)',
     fontSize: '15px',
     fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
   },
   '.cm-content': {
-    caretColor: '#D4775C',
+    caretColor: 'var(--color-accent)',
     lineHeight: '1.7',
     padding: '16px 0',
   },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#D4775C' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-accent)' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: 'rgba(212, 119, 92, 0.15)',
+    backgroundColor: 'var(--color-selection)',
   },
-  '.cm-activeLine': { backgroundColor: 'rgba(0, 0, 0, 0.03)' },
+  '.cm-activeLine': { backgroundColor: 'var(--color-active)' },
   '.cm-gutters': {
-    backgroundColor: '#F0EFED',
-    color: '#999',
+    backgroundColor: 'var(--color-sidebar-bg)',
+    color: 'var(--color-text-secondary)',
     border: 'none',
-    borderRight: '1px solid #E5E5E5',
+    borderRight: '1px solid var(--color-border)',
   },
   '.cm-activeLineGutter': {
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    color: '#2C2C2C',
+    backgroundColor: 'var(--color-active)',
+    color: 'var(--color-text)',
   },
   '.cm-foldPlaceholder': {
-    backgroundColor: '#F4F1EE',
-    border: '1px solid #E5E5E5',
-    color: '#999',
+    backgroundColor: 'var(--color-code-bg)',
+    border: '1px solid var(--color-border)',
+    color: 'var(--color-text-secondary)',
   },
   '.cm-matchingBracket': {
-    backgroundColor: 'rgba(212, 119, 92, 0.2)',
+    backgroundColor: 'var(--color-selection)',
     outline: 'none',
   },
 }, { dark: false })
@@ -74,38 +80,38 @@ export const lightTheme = [lightEditorTheme, syntaxHighlighting(lightHighlight)]
 
 const darkEditorTheme = EditorView.theme({
   '&': {
-    backgroundColor: '#1E1E1E',
-    color: '#D4D4D4',
+    backgroundColor: 'var(--color-bg)',
+    color: 'var(--color-text)',
     fontSize: '15px',
     fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
   },
   '.cm-content': {
-    caretColor: '#E8956A',
+    caretColor: 'var(--color-accent)',
     lineHeight: '1.7',
     padding: '16px 0',
   },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#E8956A' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-accent)' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: 'rgba(232, 149, 106, 0.2)',
+    backgroundColor: 'var(--color-selection)',
   },
-  '.cm-activeLine': { backgroundColor: 'rgba(255, 255, 255, 0.03)' },
+  '.cm-activeLine': { backgroundColor: 'var(--color-active)' },
   '.cm-gutters': {
-    backgroundColor: '#252525',
-    color: '#666',
+    backgroundColor: 'var(--color-sidebar-bg)',
+    color: 'var(--color-text-secondary)',
     border: 'none',
-    borderRight: '1px solid #404040',
+    borderRight: '1px solid var(--color-border)',
   },
   '.cm-activeLineGutter': {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    color: '#D4D4D4',
+    backgroundColor: 'var(--color-active)',
+    color: 'var(--color-text)',
   },
   '.cm-foldPlaceholder': {
-    backgroundColor: '#2D2D2D',
-    border: '1px solid #404040',
-    color: '#666',
+    backgroundColor: 'var(--color-code-bg)',
+    border: '1px solid var(--color-border)',
+    color: 'var(--color-text-secondary)',
   },
   '.cm-matchingBracket': {
-    backgroundColor: 'rgba(232, 149, 106, 0.25)',
+    backgroundColor: 'var(--color-selection)',
     outline: 'none',
   },
 }, { dark: true })

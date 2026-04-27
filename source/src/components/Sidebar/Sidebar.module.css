@@ -28,6 +28,45 @@
   font-family: var(--font-ui);
 }
 
+/* Files-mode toolbar inside the sidebar:
+     [+笔记] [+文件夹] [排列▾]  <path…>
+   Lives just below the 大纲/文件 tab strip and above the search box. */
+.filesToolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+}
+
+.toolBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.toolBtn:hover {
+  background: var(--color-hover);
+}
+
+.pathInline {
+  flex: 1;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-left: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .footer {
   display: flex;
   align-items: center;

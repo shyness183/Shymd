@@ -5,6 +5,7 @@ import { SidebarTabs } from './SidebarTabs'
 import { SearchBox } from './SearchBox'
 import { FileTree } from './FileTree'
 import { OutlineTree } from './OutlineTree'
+import { PopoverMenu, type PopoverMenuItem } from '../PopoverMenu/PopoverMenu'
 import styles from './Sidebar.module.css'
 
 const SCROLL_EDGE = 40   // px from edge to start auto-scroll
@@ -22,7 +23,17 @@ export function Sidebar() {
   const activeTab = useAppStore((s) => s.activeTab)
   const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
   const fileStoragePath = useAppStore((s) => s.settings.fileStoragePath)
+  const createFile = useAppStore((s) => s.createFile)
+  const createFolder = useAppStore((s) => s.createFolder)
+  const fileSort = useAppStore((s) => s.fileSort)
+  const setFileSort = useAppStore((s) => s.setFileSort)
   const [filter, setFilter] = useState('')
+  const sortBtnRef = useRef<HTMLButtonElement>(null)
+  const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null)
+  const sortItems: PopoverMenuItem[] = [
+    { label: '按名称排列', checked: fileSort === 'name', onClick: () => setFileSort('name') },
+    { label: '按修改时间排列', checked: fileSort === 'modified', onClick: () => setFileSort('modified') },
+  ]
   const dragging = useRef(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number>(0)
@@ -90,9 +101,62 @@ export function Sidebar() {
   return (
     <div className={styles.sidebar}>
       <SidebarTabs />
-      {activeTab === 'files' && fileStoragePath && (
-        <div className={styles.pathHeader} title={fileStoragePath}>
-          📁 {truncatePath(fileStoragePath)}
+      {activeTab === 'files' && (
+        <div className={styles.filesToolbar}>
+          <button
+            type="button"
+            className={styles.toolBtn}
+            onClick={() => createFile([], '未命名.md')}
+            title="新建笔记"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <path d="M3 1.5 L8 1.5 L11.5 5 L11.5 12.5 L3 12.5 Z" />
+              <line x1="5.5" y1="7.5" x2="9" y2="7.5" />
+              <line x1="7.25" y1="5.75" x2="7.25" y2="9.25" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className={styles.toolBtn}
+            onClick={() => createFolder([], '未命名文件夹')}
+            title="新建文件夹"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <path d="M1.5 4 L5.5 4 L7 5.5 L12.5 5.5 L12.5 11.5 L1.5 11.5 Z" />
+              <line x1="6" y1="8.5" x2="9" y2="8.5" />
+              <line x1="7.5" y1="7" x2="7.5" y2="10" />
+            </svg>
+          </button>
+          <button
+            ref={sortBtnRef}
+            type="button"
+            className={styles.toolBtn}
+            onClick={() => {
+              if (!sortBtnRef.current) return
+              const r = sortBtnRef.current.getBoundingClientRect()
+              setSortMenu({ x: r.left, y: r.bottom + 4 })
+            }}
+            title="排列"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <line x1="2" y1="3.5" x2="12" y2="3.5" />
+              <line x1="2" y1="7" x2="9" y2="7" />
+              <line x1="2" y1="10.5" x2="6" y2="10.5" />
+            </svg>
+          </button>
+          {fileStoragePath && (
+            <div className={styles.pathInline} title={fileStoragePath}>
+              {truncatePath(fileStoragePath)}
+            </div>
+          )}
+          {sortMenu && (
+            <PopoverMenu
+              items={sortItems}
+              x={sortMenu.x}
+              y={sortMenu.y}
+              onClose={() => setSortMenu(null)}
+            />
+          )}
         </div>
       )}
       <SearchBox value={filter} onChange={setFilter} />
