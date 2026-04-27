@@ -79,13 +79,16 @@ export function SlashMenu() {
         if (state?.mode === 'source') close()
         return
       }
-      // Relaxed trigger: line start OR after whitespace.
-      const m = textBefore.match(/(?:^|\s)\/([^\s/]*)$/)
+      // Fully relaxed trigger: any `/` typed in plain text opens the
+      // menu — except when the slash is immediately preceded by another
+      // `/` (avoids URL paths like `https://` and `path/to/file`
+      // hijacking every keystroke).
+      const m = textBefore.match(/(^|[^/])\/([^\s/]*)$/)
       if (m) {
-        const slashPos = from - (m[1].length + 1)
+        const slashPos = from - (m[2].length + 1)
         const coords = v.coordsAtPos(slashPos)
         if (!coords) { if (state) close(); return }
-        setQuery(m[1])
+        setQuery(m[2])
         setIndex(0)
         lastSlashPosRef.current = slashPos
         setState({
@@ -144,17 +147,17 @@ export function SlashMenu() {
       }
       const offset = sel.anchorOffset
       const before = textNode.nodeValue?.slice(0, offset) || ''
-      // Relaxed trigger: line start (offset 0 in this text node) OR
-      // after whitespace.
-      const m = before.match(/(?:^|\s)\/([^\s/]*)$/)
+      // Fully relaxed trigger: any `/` opens the menu unless preceded
+      // by another `/` (URL paths).
+      const m = before.match(/(^|[^/])\/([^\s/]*)$/)
       if (m) {
-        const textOffset = offset - (m[1].length + 1)
+        const textOffset = offset - (m[2].length + 1)
         const range = document.createRange()
         range.setStart(textNode, textOffset)
         range.setEnd(textNode, offset)
         const rect = range.getBoundingClientRect()
         if (!rect || (rect.width === 0 && rect.height === 0)) return
-        setQuery(m[1])
+        setQuery(m[2])
         setIndex(0)
         setState({
           mode: 'wysiwyg',

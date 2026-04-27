@@ -25,15 +25,25 @@ export function saveSelection() {
   }
 }
 
-function restoreSelection(): boolean {
+/**
+ * Restore the previously-saved selection. Exported because the
+ * floating toolbar needs to re-anchor the original selection before
+ * each live-preview tick of the highlight picker — clicking swatches /
+ * dragging the slider can briefly steal the selection in some browsers.
+ *
+ * `consume` defaults to true (single-shot, matches the original
+ * behaviour for table-picker etc.). Pass `false` to peek-and-restore
+ * without clearing the saved range.
+ */
+export function restoreSelection(consume = true): boolean {
   if (!_savedRange || !_ceRoot) return false
   _ceRoot.focus()
   const sel = window.getSelection()
   if (sel) {
     sel.removeAllRanges()
-    sel.addRange(_savedRange)
+    sel.addRange(_savedRange.cloneRange())
   }
-  _savedRange = null
+  if (consume) _savedRange = null
   return true
 }
 

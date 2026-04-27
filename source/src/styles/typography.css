@@ -52,11 +52,11 @@ pre code {
 
 hr {
   border: none;
-  /* Use text-secondary instead of the very-light --color-border so the
-     rule is clearly visible against the page background in every theme. */
-  border-top: 1px solid var(--color-text-secondary);
+  /* 2px solid text-secondary — clearly visible in every theme, much
+     darker than the previous --color-border (which is near-bg in light
+     themes). */
+  border-top: 2px solid var(--color-text-secondary);
   margin: 1.5em 0;
-  opacity: 0.55;
 }
 
 table {

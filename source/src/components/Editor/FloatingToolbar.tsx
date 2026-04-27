@@ -15,6 +15,7 @@ import {
   htmlQuote, htmlUnorderedList, htmlOrderedList, htmlTaskList,
   htmlCodeBlock, htmlUnderline, htmlInlineMath, htmlImage, htmlClearFormat,
   getCERoot, getActiveMark, getLastHighlightMark,
+  saveSelection, restoreSelection,
 } from '../../lib/htmlEditorCommands'
 import styles from './FloatingToolbar.module.css'
 
@@ -185,7 +186,10 @@ export function FloatingToolbar() {
       setShowHighlight(false)
       setPos(null)
     } else {
-      // Reset the per-session mark ref every time the picker opens.
+      // Snapshot the current selection — opening the picker can let
+      // the contentEditable lose its selection in some browsers, and
+      // we need it intact for the first live-apply call.
+      saveSelection()
       activeMarkRef.current = null
       setShowHighlight((v) => !v)
       setShowParagraph(false)
@@ -205,6 +209,9 @@ export function FloatingToolbar() {
       activeMarkRef.current.style.background = color
       return
     }
+    // First live-apply this session — re-anchor the snapshotted
+    // selection (peek, don't consume — it stays valid as a fallback).
+    restoreSelection(false)
     htmlHighlight(color)
     activeMarkRef.current = getLastHighlightMark()
   }
