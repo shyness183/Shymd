@@ -512,7 +512,7 @@ export function htmlCodeBlock() {
   // Ensure a clickable paragraph exists after the <pre> so the user can
   // click outside the code block to place the cursor. We only do this
   // when <pre> is a direct child of _ceRoot and has no sibling after it.
-  if (!pre.nextSibling && pre.parentNode === _ceRoot) {
+  if (_ceRoot && !pre.nextSibling && pre.parentNode === _ceRoot) {
     const trailing = document.createElement('p')
     trailing.innerHTML = '<br>'
     _ceRoot.appendChild(trailing)

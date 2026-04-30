@@ -106,7 +106,7 @@ md.use((mdInstance: MarkdownIt) => {
 let mermaidReady: Promise<typeof import('mermaid')> | null = null
 let mermaidTheme: string | null = null
 
-function getMermaidTheme(): string {
+function getMermaidTheme(): 'default' | 'dark' {
   const attr = document.documentElement.getAttribute('data-theme') || ''
   return ['dark', 'monokai', 'dracula', 'one-dark'].includes(attr) ? 'dark' : 'default'
 }
@@ -120,11 +120,12 @@ function getMermaid() {
     mermaidReady = null
   }
   if (!mermaidReady) {
-    mermaidTheme = currentTheme
+    const theme: 'default' | 'dark' = currentTheme
+    mermaidTheme = theme
     mermaidReady = import('mermaid').then((m) => {
       m.default.initialize({
         startOnLoad: false,
-        theme: mermaidTheme,
+        theme,
         securityLevel: 'loose',
       })
       return m
