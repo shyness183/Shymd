@@ -47,4 +47,13 @@ export function commitMathDialog(result: MathDialogResult) {
   useMathDialogStore.getState()._hide()
   _resolve?.(result)
   _resolve = null
+  // Restore editor focus so the user can keep typing without clicking back.
+  setTimeout(async () => {
+    const { getCERoot } = await import('./htmlEditorCommands')
+    const { getEditorView } = await import('./editorCommands')
+    const root = getCERoot()
+    if (root) { root.focus(); return }
+    const view = getEditorView()
+    view?.focus()
+  }, 0)
 }

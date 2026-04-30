@@ -23,6 +23,7 @@ export function Sidebar() {
   const fileStoragePath = useAppStore((s) => s.settings.fileStoragePath)
   const createFile = useAppStore((s) => s.createFile)
   const createFolder = useAppStore((s) => s.createFolder)
+  const setEditingPath = useAppStore((s) => s.setEditingPath)
   const fileSort = useAppStore((s) => s.fileSort)
   const setFileSort = useAppStore((s) => s.setFileSort)
   const filter = useAppStore((s) => s.searchQuery)
@@ -66,8 +67,16 @@ export function Sidebar() {
     }
   }, [])
 
-  // Clean up on unmount
-  useEffect(() => stopAutoScroll, [stopAutoScroll])
+  // Also stop on document-level dragend — if the user releases the mouse
+  // outside any drop target, the dragend event fires on the source element,
+  // not on our content div.  A document listener catches every drag end.
+  useEffect(() => {
+    document.addEventListener('dragend', stopAutoScroll)
+    return () => {
+      stopAutoScroll()
+      document.removeEventListener('dragend', stopAutoScroll)
+    }
+  }, [stopAutoScroll])
 
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -103,7 +112,7 @@ export function Sidebar() {
           <button
             type="button"
             className={styles.toolBtn}
-            onClick={() => createFile([], '未命名.md')}
+            onClick={() => { createFile([], '未命名.md'); setTimeout(() => setEditingPath(['未命名.md']), 0) }}
             title="新建笔记"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
@@ -115,7 +124,7 @@ export function Sidebar() {
           <button
             type="button"
             className={styles.toolBtn}
-            onClick={() => createFolder([], '未命名文件夹')}
+            onClick={() => { createFolder([], '未命名文件夹'); setTimeout(() => setEditingPath(['未命名文件夹']), 0) }}
             title="新建文件夹"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">

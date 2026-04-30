@@ -3,6 +3,17 @@
 // and plain DOM. execCommand is deprecated but remains the pragmatic
 // choice for Typora-style editors where we need live formatting.
 
+// ─── Edit commands (execCommand works fine in contentEditable) ───────
+// These exist so the MenuBar can dispatch mode-aware edit operations
+// (CM6 has its own undo/redo/selectAll; contentEditable uses execCommand).
+
+export function htmlUndo() { document.execCommand('undo') }
+export function htmlRedo() { document.execCommand('redo') }
+export function htmlCut() { document.execCommand('cut') }
+export function htmlCopy() { document.execCommand('copy') }
+export function htmlPaste() { document.execCommand('paste') }
+export function htmlSelectAll() { document.execCommand('selectAll') }
+
 // Global ref to the active contentEditable container so commands can
 // refocus it and so the floating toolbar can check if the selection
 // belongs to us.
@@ -297,7 +308,8 @@ export async function htmlHyperlink() {
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0) return
 
-  // Save range before async dialog
+  // Save range before async dialog — but nodes may detach while the
+  // dialog is open (user clicks elsewhere, etc.).  Verify on restore.
   const range = sel.getRangeAt(0).cloneRange()
   const selectedText = sel.isCollapsed ? '' : sel.toString()
 
@@ -319,14 +331,22 @@ export async function htmlHyperlink() {
   if (!result) { focusRoot(); return }
 
   _ceRoot.focus()
-  sel.removeAllRanges()
-  sel.addRange(range)
+  // Only restore the saved range if its container is still in the DOM
+  // (the user may have clicked elsewhere while the dialog was open).
+  if (_ceRoot.contains(range.startContainer)) {
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }
 
   if (existingA) {
     // Edit existing link in-place. Place caret AFTER the link so the
     // user typing more doesn't extend the anchor text.
     existingA.href = result.url
-    if (result.text) existingA.textContent = result.text
+    // Only replace textContent when there are no nested elements
+    // (<strong>, <em>, etc.) — otherwise the formatting would be destroyed.
+    if (result.text && existingA.children.length === 0) {
+      existingA.textContent = result.text
+    }
     placeCaretOutsideAfter(existingA)
   } else if (!sel.isCollapsed) {
     // Wrap selected text in a fresh <a>. We avoid execCommand here for
@@ -461,6 +481,13 @@ export function htmlTable(rows: number, cols: number) {
   const range = sel.getRangeAt(0)
   range.deleteContents()
   range.insertNode(table)
+  // Ensure a clickable paragraph exists after the table so the user can
+  // click below it to continue typing.
+  if (!table.nextSibling && table.parentNode === _ceRoot) {
+    const trailing = document.createElement('p')
+    trailing.innerHTML = '<br>'
+    _ceRoot.appendChild(trailing)
+  }
   focusRoot()
 }
 
@@ -482,6 +509,14 @@ export function htmlCodeBlock() {
   pre.appendChild(code)
   range.deleteContents()
   range.insertNode(pre)
+  // Ensure a clickable paragraph exists after the <pre> so the user can
+  // click outside the code block to place the cursor. We only do this
+  // when <pre> is a direct child of _ceRoot and has no sibling after it.
+  if (!pre.nextSibling && pre.parentNode === _ceRoot) {
+    const trailing = document.createElement('p')
+    trailing.innerHTML = '<br>'
+    _ceRoot.appendChild(trailing)
+  }
   const r = document.createRange()
   r.setStart(codeText, codeText.nodeValue?.length ?? 0)
   r.collapse(true)
@@ -558,9 +593,9 @@ export async function htmlImage() {
 
   if (!url) { focusRoot(); return }
 
-  // Restore selection
+  // Restore selection — verify the saved range is still in the DOM.
   _ceRoot.focus()
-  if (range) {
+  if (range && _ceRoot.contains(range.startContainer)) {
     const s = window.getSelection()
     if (s) { s.removeAllRanges(); s.addRange(range) }
   }
@@ -642,23 +677,24 @@ export function htmlClearFormat() {
     }
   }
 
-  // Snapshot endpoints before extracting (extract clears the range).
-  const startContainer = range.startContainer
-  const startOffset = range.startOffset
-
+  // Snapshot endpoints before extracting (extractContents may detach
+  // the start container from the main DOM when the selection crosses
+  // element boundaries).  Use the range's own collapsed position after
+  // extraction — it's always valid.
   const frag = range.extractContents()
   // Drop any Live Preview marker spans dragged into the fragment —
   // they're transient UI hints, not real content.
   frag.querySelectorAll && (frag as DocumentFragment).querySelectorAll('span.md-marker').forEach((m) => m.remove())
   stripIn(frag)
 
-  // Re-insert at the original start point. After insert, normalize the
-  // parent so adjacent text nodes from the split-points re-merge.
-  range.setStart(startContainer, startOffset)
-  range.collapse(true)
-  // Re-acquire because frag insertion can invalidate references.
+  // Re-insert at the extraction point. The range is collapsed to the
+  // start of the extracted slice — that's our insertion anchor.
   range.insertNode(frag)
-  if (startContainer.parentNode) (startContainer.parentNode as Element).normalize?.()
+  // Normalize the parent so adjacent text nodes from the split-points
+  // re-merge.  range.startContainer is still valid after insertNode.
+  if (range.startContainer.parentNode) {
+    (range.startContainer.parentNode as Element).normalize?.()
+  }
 
   // Place caret at the end of where the cleared content now sits.
   const end = document.createRange()
@@ -711,15 +747,20 @@ export async function htmlInlineMath() {
 
   _ceRoot?.focus()
   const s = window.getSelection()
-  if (s) { s.removeAllRanges(); s.addRange(range) }
+  if (s && _ceRoot && _ceRoot.contains(range.startContainer)) {
+    s.removeAllRanges(); s.addRange(range)
+  }
 
   const node = await renderMathNode(result.tex, result.display)
+  // Re-acquire current selection in case the saved range was stale.
+  const curSel = window.getSelection()
+  const curRange = curSel?.rangeCount ? curSel.getRangeAt(0) : null
   if (result.display) {
-    range.collapse(false)
-    range.insertNode(node)
+    if (curRange) { curRange.collapse(false); curRange.insertNode(node) }
+    else { _ceRoot?.appendChild(node) }
   } else {
-    range.deleteContents()
-    range.insertNode(node)
+    if (curRange) { curRange.deleteContents(); curRange.insertNode(node) }
+    else { _ceRoot?.appendChild(node) }
   }
   // Place cursor AFTER the inserted math node so typing continues plain.
   const after = document.createRange()

@@ -70,7 +70,22 @@ export function useTypewriter() {
       })
     }
 
-    const onSelect = () => center()
+    const onSelect = () => {
+      // Only center when the selection is actually inside our editor —
+      // `selectionchange` fires for everywhere (sidebar clicks, etc.).
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0) {
+        const anchor = sel.anchorNode
+        if (editorMode === 'source') {
+          const view = getEditorView()
+          if (!view || !anchor || !view.dom.contains(anchor)) return
+        } else {
+          const root = getCERoot()
+          if (!root || !anchor || !root.contains(anchor)) return
+        }
+      }
+      center()
+    }
     const onInput = () => center()
 
     document.addEventListener('selectionchange', onSelect)

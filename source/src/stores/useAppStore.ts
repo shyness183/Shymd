@@ -445,6 +445,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     }
     set(patch)
+
+    // Mirror to disk so the drag-and-drop persists across restarts.
+    if (isTauri() && settings.fileStoragePath) {
+      const root = settings.fileStoragePath.replace(/[\\/]+$/, '')
+      const oldPath = [root, ...sourcePath].join('/')
+      const newPath = [root, ...destFolderPath, sourcePath[sourcePath.length - 1]].join('/')
+      renamePath(oldPath, newPath).catch((err) => {
+        console.error('Failed to move on disk (drag & drop):', err)
+        showToast(`磁盘移动失败：${sourcePath[sourcePath.length - 1]}`, 'error')
+      })
+    }
   },
 
   settings: loadSettings(),

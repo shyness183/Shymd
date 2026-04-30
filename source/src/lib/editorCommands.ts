@@ -1,3 +1,4 @@
+import { undo, redo, selectAll } from '@codemirror/commands'
 import type { EditorView } from '@codemirror/view'
 
 // Global ref to the active CodeMirror EditorView
@@ -131,9 +132,12 @@ export function cmdCodeBlock() {
   const view = _editorView
   if (!view) return
   insertBlock(view, '```\n\n```')
-  // Move cursor inside the code block
+  // Move cursor inside the code block (between the opening ``` fence
+  // and the closing ```).  The cursor is at the end of the block; step
+  // back past the closing fence + its leading newline.
   const { from } = view.state.selection.main
-  view.dispatch({ selection: { anchor: from - 4 } })
+  const CLOSING = '```'
+  view.dispatch({ selection: { anchor: from - (CLOSING.length + 1) } })
 }
 
 export async function cmdMathBlock() {
@@ -141,9 +145,16 @@ export async function cmdMathBlock() {
   if (!view) return
   const { from, to } = view.state.selection.main
   const seed = view.state.sliceDoc(from, to) || '\\int_0^1 x^2\\,dx'
+  // Snapshot which file we're editing — if the user switches files while
+  // the dialog is open, discard the result instead of corrupting another doc.
+  const { useAppStore } = await import('../stores/useAppStore')
+  const fileKey = useAppStore.getState().activeFilePath.join('/')
   const { showMathDialog } = await import('./mathDialog')
   const result = await showMathDialog(seed, /* display */ true)
   if (!result) { view.focus(); return }
+  if (useAppStore.getState().activeFilePath.join('/') !== fileKey) {
+    view.focus(); return
+  }
   const snippet = result.display
     ? `\n$$\n${result.tex}\n$$\n`
     : `$${result.tex}$`
@@ -208,9 +219,14 @@ export async function cmdInlineMath() {
   if (!view) return
   const { from, to } = view.state.selection.main
   const seed = view.state.sliceDoc(from, to)
+  const { useAppStore } = await import('../stores/useAppStore')
+  const fileKey = useAppStore.getState().activeFilePath.join('/')
   const { showMathDialog } = await import('./mathDialog')
   const result = await showMathDialog(seed, /* display */ false)
   if (!result) { view.focus(); return }
+  if (useAppStore.getState().activeFilePath.join('/') !== fileKey) {
+    view.focus(); return
+  }
   const snippet = result.display
     ? `\n$$\n${result.tex}\n$$\n`
     : `$${result.tex}$`
@@ -233,9 +249,14 @@ export async function cmdHyperlink() {
   const { from, to } = view.state.selection.main
   const selected = view.state.sliceDoc(from, to)
 
+  const { useAppStore } = await import('../stores/useAppStore')
+  const fileKey = useAppStore.getState().activeFilePath.join('/')
   const { showLinkDialog } = await import('./linkDialog')
   const result = await showLinkDialog(selected || '', '')
   if (!result) { view.focus(); return }
+  if (useAppStore.getState().activeFilePath.join('/') !== fileKey) {
+    view.focus(); return
+  }
 
   const replacement = `[${result.text || result.url}](${result.url})`
   view.dispatch({
@@ -248,6 +269,9 @@ export async function cmdHyperlink() {
 export async function cmdImage() {
   const view = _editorView
   if (!view) return
+
+  const { useAppStore } = await import('../stores/useAppStore')
+  const fileKey = useAppStore.getState().activeFilePath.join('/')
 
   if ((window as any).__TAURI_INTERNALS__) {
     const dialog = await import('@tauri-apps/plugin-dialog')
@@ -277,6 +301,9 @@ export async function cmdImage() {
     } else {
       url = convertFileSrc(filePath)
     }
+    if (useAppStore.getState().activeFilePath.join('/') !== fileKey) {
+      view.focus(); return
+    }
     const { from, to } = view.state.selection.main
     const selected = view.state.sliceDoc(from, to)
     const replacement = `![${selected || 'image'}](${url})`
@@ -289,6 +316,9 @@ export async function cmdImage() {
     const { pickImageBrowser } = await import('./filesystem')
     const url = await pickImageBrowser()
     if (!url) { view.focus(); return }
+    if (useAppStore.getState().activeFilePath.join('/') !== fileKey) {
+      view.focus(); return
+    }
     const { from, to } = view.state.selection.main
     const selected = view.state.sliceDoc(from, to)
     const replacement = `![${selected || 'image'}](${url})`
@@ -317,6 +347,21 @@ export function cmdClearFormat() {
   let text = view.state.sliceDoc(from, to)
   // Strip pair-wrapped inline markers iteratively until nothing changes,
   // so **_foo_** collapses cleanly.
+  //
+  // Safari < 16.4 does not support lookbehind (?<!…).  Build the italic
+  // regexes with the RegExp constructor so a SyntaxError is catchable at
+  // runtime (regex literals throw at parse time and are uncatchable).
+  let italicStarRe: RegExp
+  let italicUnderscoreRe: RegExp
+  try {
+    italicStarRe = new RegExp('(?<!\\*)\\*([^*\\n]+?)\\*(?!\\*)', 'g')
+    italicUnderscoreRe = new RegExp('(?<!_)_([^_\\n]+?)_(?!_)', 'g')
+  } catch {
+    // Fall back to simpler patterns without negative lookbehind.
+    italicStarRe = /\*([^*\n]+?)\*/g
+    italicUnderscoreRe = /_([^_\n]+?)_/g
+  }
+
   let prev: string
   do {
     prev = text
@@ -325,8 +370,8 @@ export function cmdClearFormat() {
       .replace(/<\/?mark[^>]*>/gi, '')       // <mark>...</mark>
       .replace(/\*\*([\s\S]+?)\*\*/g, '$1')  // bold
       .replace(/__([\s\S]+?)__/g, '$1')      // alt bold
-      .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '$1')  // italic *
-      .replace(/(?<!_)_([^_\n]+?)_(?!_)/g, '$1')      // italic _
+      .replace(italicStarRe, '$1')            // italic *
+      .replace(italicUnderscoreRe, '$1')      // italic _
       .replace(/~~([\s\S]+?)~~/g, '$1')      // strikethrough
       .replace(/==([\s\S]+?)==/g, '$1')      // highlight
       .replace(/`([^`\n]+)`/g, '$1')         // inline code
@@ -337,6 +382,47 @@ export function cmdClearFormat() {
     selection: { anchor: from, head: from + text.length },
   })
   view.focus()
+}
+
+// --- Edit commands (mode-aware) ---
+// These exist because document.execCommand('undo'/'redo'/'selectAll')
+// is broken inside CodeMirror 6 which manages its own history/selection.
+// The WYSIWYG path still delegates to execCommand where it works fine.
+
+export function cmdUndo() {
+  const view = _editorView
+  if (!view) return
+  undo(view)
+}
+
+export function cmdRedo() {
+  const view = _editorView
+  if (!view) return
+  redo(view)
+}
+
+export function cmdSelectAll() {
+  const view = _editorView
+  if (!view) return
+  selectAll(view)
+}
+
+export function cmdCut() {
+  const view = _editorView
+  if (!view) return
+  document.execCommand('cut')
+}
+
+export function cmdCopy() {
+  const view = _editorView
+  if (!view) return
+  document.execCommand('copy')
+}
+
+export function cmdPaste() {
+  const view = _editorView
+  if (!view) return
+  document.execCommand('paste')
 }
 
 // --- Search commands ---

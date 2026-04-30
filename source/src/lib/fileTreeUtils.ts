@@ -94,21 +94,42 @@ export function updateContentByName(
   return clone
 }
 
-/** Update file content at an exact path. Safe against duplicate filenames. */
+/** Update file content at an exact path. Safe against duplicate filenames.
+ *  Uses structural sharing — only clones nodes along the path to the target,
+ *  not the entire tree.  Called on every keystroke, so this matters for
+ *  large workspaces. */
 export function updateContentByPath(
   tree: FileNode[],
   path: string[],
   content: string,
 ): FileNode[] {
   if (path.length === 0) return tree
-  const clone = cloneTree(tree)
-  const parentPath = path.slice(0, -1)
-  const name = path[path.length - 1]
-  const parent = findChildren(clone, parentPath)
-  if (!parent) return clone
-  const node = parent.find((n) => n.name === name && n.type === 'file')
-  if (node) node.content = content
-  return clone
+  const targetName = path[path.length - 1]
+
+  function update(nodes: FileNode[], depth: number): FileNode[] {
+    let changed = false
+    const next = nodes.map((n) => {
+      if (depth === path.length - 1) {
+        // Found the target file
+        if (n.name === targetName && n.type === 'file') {
+          changed = true
+          return { ...n, content }
+        }
+        return n
+      }
+      if (n.name === path[depth] && n.type === 'folder' && n.children) {
+        const newChildren = update(n.children, depth + 1)
+        if (newChildren !== n.children) {
+          changed = true
+          return { ...n, children: newChildren }
+        }
+      }
+      return n
+    })
+    return changed ? next : nodes
+  }
+
+  return update(tree, 0)
 }
 
 /** Find a node at an exact path. Returns null if not found. */

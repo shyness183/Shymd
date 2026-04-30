@@ -9,7 +9,6 @@ import {
   replaceMatch,
   type FindMatch,
 } from '../../lib/findReplace'
-import { md, resolveRelativeAssets } from '../../lib/markdown'
 import TurndownService from 'turndown'
 import styles from './FindReplacePanel.module.css'
 
@@ -109,9 +108,13 @@ export function FindReplacePanel() {
 
   const doReplaceAll = () => {
     if (editorMode === 'reading') return
-    // We must mutate from the store side, not via a second search in the
-    // DOM — because markdown→HTML re-render would wipe our edits. Instead
-    // mutate the markdown doc directly, which is simpler and correct.
+    if (!query) return  // Empty query would corrupt the document (split/join
+                         // with "" on every character, or regex matching
+                         // every zero-width boundary).
+    // Sync any pending WYSIWYG edits into the doc store before we operate on
+    // it, otherwise the 400ms scheduleSave debounce silently discards the
+    // user's last keystrokes when replaceAll fires in between.
+    syncDocFromDOM()
     const root = getFindRoot()
     if (!root) return
     const currentDoc = useAppStore.getState().doc
@@ -129,15 +132,9 @@ export function FindReplacePanel() {
       })
     }
     setDoc(nextDoc)
-    // Re-render DOM for WYSIWYG to reflect new content, then recompute.
-    if (editorMode === 'wysiwyg') {
-      root.innerHTML = md.render(nextDoc)
-      // Re-resolve relative image paths against the open file's
-      // directory; otherwise inline `<img>` references go blank after a
-      // find/replace round.
-      const abs = useAppStore.getState().activeAbsolutePath
-      resolveRelativeAssets(root, abs)
-    }
+    // setDoc triggers the WysiwygEditor effect which re-renders the DOM
+    // when the editor is not focused (which is the case here — the Find
+    // panel has focus).  Avoid a second redundant innerHTML assignment.
     setTimeout(() => recompute(false), 50)
     if (count > 0) {
       // Brief status nudge via the query placeholder — keep it simple.

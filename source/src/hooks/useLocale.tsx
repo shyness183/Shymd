@@ -18,8 +18,21 @@ interface LocaleContextValue {
 
 const LocaleContext = createContext<LocaleContextValue>(null!)
 
+function loadLocale(): Locale {
+  try {
+    const raw = localStorage.getItem('shymd-locale')
+    if (raw === 'en-US' || raw === 'zh-CN') return raw
+  } catch { /* quota / private mode */ }
+  return 'zh-CN'
+}
+
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>('zh-CN')
+  const [locale, setLocaleState] = useState<Locale>(loadLocale)
+
+  const setLocale = useCallback((next: Locale) => {
+    setLocaleState(next)
+    try { localStorage.setItem('shymd-locale', next) } catch { /* ignore */ }
+  }, [])
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number>) => {

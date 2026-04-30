@@ -15,6 +15,8 @@
   --color-text-secondary: #6B6B6B;
   --color-scrollbar: #C8C5C0;
   --color-scrollbar-hover: #A8A5A0;
+  --color-panel: #F5F4F2;
+  --color-bg-hover: #F0EFED;
 }
 
 /* ===== Morandi Theme — 低饱和度莫兰迪配色 ===== */
@@ -34,6 +36,8 @@
   --color-text-secondary: #7A7064;
   --color-scrollbar: #B7AE9E;
   --color-scrollbar-hover: #8E8576;
+  --color-panel: #E5DFD3;
+  --color-bg-hover: #DFD8CB;
 }
 
 /* ===== Eye-Care Green — 浅绿护眼主题 ===== */
@@ -53,6 +57,8 @@
   --color-text-secondary: #566B58;
   --color-scrollbar: #8AB28E;
   --color-scrollbar-hover: #6B9170;
+  --color-panel: #BEE5C3;
+  --color-bg-hover: #B5DEBA;
 }
 
 /* ===== Dark Theme — PDD 9.1 暗色经典 ===== */
@@ -72,6 +78,8 @@
   --color-text-secondary: #999999;
   --color-scrollbar: #555555;
   --color-scrollbar-hover: #777777;
+  --color-panel: #2A2A2A;
+  --color-bg-hover: #333333;
 }
 
 /* ===== Monokai — VS Code 风格暖色暗主题 ===== */
@@ -91,6 +99,8 @@
   --color-text-secondary: #75715E;
   --color-scrollbar: #4A4A40;
   --color-scrollbar-hover: #6E6E5E;
+  --color-panel: #2E2F28;
+  --color-bg-hover: #363830;
 }
 
 /* ===== Dracula — 紫色调暗主题 ===== */
@@ -110,6 +120,8 @@
   --color-text-secondary: #6272A4;
   --color-scrollbar: #44475A;
   --color-scrollbar-hover: #6272A4;
+  --color-panel: #2E3040;
+  --color-bg-hover: #363848;
 }
 
 /* ===== Solarized Light — 米黄护眼亮主题 ===== */
@@ -129,6 +141,8 @@
   --color-text-secondary: #93A1A1;
   --color-scrollbar: #C8C0A4;
   --color-scrollbar-hover: #A8A084;
+  --color-panel: #F4EFDC;
+  --color-bg-hover: #EEE8D5;
 }
 
 /* ===== One Dark — Atom / VS Code 经典暗主题 ===== */
@@ -148,6 +162,8 @@
   --color-text-secondary: #7F848E;
   --color-scrollbar: #4B5263;
   --color-scrollbar-hover: #6B7280;
+  --color-panel: #2C313A;
+  --color-bg-hover: #343A46;
 }
 
 /* ===== Layout Tokens — PDD 9.3 ===== */

@@ -28,6 +28,15 @@ export function TablePicker() {
 
   if (!open) return null
 
+  const closePicker = () => {
+    setOpen(false)
+    // Restore editor focus so the user can keep typing without clicking back.
+    requestAnimationFrame(() => {
+      if (editorMode === 'wysiwyg') getCERoot()?.focus()
+      else getEditorView()?.focus()
+    })
+  }
+
   const pick = (r: number, c: number) => {
     // Close picker first so the backdrop doesn't block editor focus
     setOpen(false)
@@ -42,7 +51,7 @@ export function TablePicker() {
   }
 
   return (
-    <div className={styles.backdrop} onClick={() => setOpen(false)}>
+    <div className={styles.backdrop} onClick={closePicker}>
       <div className={styles.picker} onClick={(e) => e.stopPropagation()}>
         <div className={styles.title}>插入表格</div>
         <div className={styles.label}>

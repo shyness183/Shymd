@@ -35,15 +35,23 @@ export function SlashMenu() {
   const { locale } = useLocale()
   const editorMode = useAppStore((s) => s.editorMode)
   const [state, setState] = useState<OpenState | null>(null)
+  // Ref mirror of `state` so the event handlers always read the latest
+  // value even when the effect hasn't re-run yet (avoiding stale closure).
+  const stateRef = useRef<OpenState | null>(null)
   const [query, setQuery] = useState('')
   const [index, setIndex] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
   const lastSlashPosRef = useRef<number | null>(null)
 
+  const setSlashState = (s: OpenState | null) => {
+    stateRef.current = s
+    setState(s)
+  }
+
   const filtered = useMemo(() => filterSlashCommands(query), [query])
 
   const close = () => {
-    setState(null)
+    setSlashState(null)
     setQuery('')
     setIndex(0)
     lastSlashPosRef.current = null
@@ -76,7 +84,7 @@ export function SlashMenu() {
       const before = v.state.doc.sliceString(0, line.from)
       const fenceMatches = before.match(/^```/gm)
       if (fenceMatches && fenceMatches.length % 2 === 1) {
-        if (state?.mode === 'source') close()
+        if (stateRef.current?.mode === 'source') close()
         return
       }
       // Fully relaxed trigger: any `/` typed in plain text opens the
@@ -87,23 +95,23 @@ export function SlashMenu() {
       if (m) {
         const slashPos = from - (m[2].length + 1)
         const coords = v.coordsAtPos(slashPos)
-        if (!coords) { if (state) close(); return }
+        if (!coords) { if (stateRef.current) close(); return }
         setQuery(m[2])
         setIndex(0)
         lastSlashPosRef.current = slashPos
-        setState({
+        setSlashState({
           mode: 'source',
           x: coords.left,
           y: coords.bottom + 4,
           slashPos,
         })
-      } else if (state?.mode === 'source' && lastSlashPosRef.current !== null) {
+      } else if (stateRef.current?.mode === 'source' && lastSlashPosRef.current !== null) {
         close()
       }
     }
 
     const onKey = (e: KeyboardEvent) => {
-      if (!state || state.mode !== 'source') return
+      if (!stateRef.current || stateRef.current.mode !== 'source') return
       if (e.key === 'Escape') { e.preventDefault(); close() }
       if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, filtered.length - 1)) }
       if (e.key === 'ArrowUp')   { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)) }
@@ -132,17 +140,17 @@ export function SlashMenu() {
 
     const scan = () => {
       const sel = window.getSelection()
-      if (!sel || sel.rangeCount === 0) { if (state?.mode === 'wysiwyg') close(); return }
+      if (!sel || sel.rangeCount === 0) { if (stateRef.current?.mode === 'wysiwyg') close(); return }
       const anchor = sel.anchorNode
       if (!anchor || anchor.nodeType !== Node.TEXT_NODE || !root.contains(anchor)) {
-        if (state?.mode === 'wysiwyg') close()
+        if (stateRef.current?.mode === 'wysiwyg') close()
         return
       }
       const textNode = anchor as Text
       // Bail when the caret is inside code/pre.
       const parentEl = textNode.parentElement
       if (parentEl && parentEl.closest('pre, code')) {
-        if (state?.mode === 'wysiwyg') close()
+        if (stateRef.current?.mode === 'wysiwyg') close()
         return
       }
       const offset = sel.anchorOffset
@@ -159,7 +167,7 @@ export function SlashMenu() {
         if (!rect || (rect.width === 0 && rect.height === 0)) return
         setQuery(m[2])
         setIndex(0)
-        setState({
+        setSlashState({
           mode: 'wysiwyg',
           x: rect.left,
           y: rect.bottom + 4,
@@ -173,7 +181,7 @@ export function SlashMenu() {
 
     const onInput = () => scan()
     const onKey = (e: KeyboardEvent) => {
-      if (!state || state.mode !== 'wysiwyg') return
+      if (!stateRef.current || stateRef.current.mode !== 'wysiwyg') return
       if (e.key === 'Escape') { e.preventDefault(); close() }
       if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, filtered.length - 1)) }
       if (e.key === 'ArrowUp')   { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)) }

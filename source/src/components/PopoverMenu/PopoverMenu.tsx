@@ -137,7 +137,10 @@ export function PopoverMenu({ items, x, y, onClose, className }: PopoverMenuProp
           items={items[hoverIdx].children!}
           x={submenuPos.x}
           y={submenuPos.y}
-          onClose={onClose}
+          // Only close the submenu when clicking outside it, not the entire
+          // parent menu.  This lets the user move between submenus without
+          // re-opening the kebab.
+          onClose={() => { setHoverIdx(null); setSubmenuPos(null) }}
         />
       )}
     </div>

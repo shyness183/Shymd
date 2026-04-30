@@ -17,13 +17,13 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   max-width: 380px;
   animation: slideIn 180ms ease-out;
-  color: var(--text-primary);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  color: var(--color-text);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
 }
 
 .info {
-  border-left: 3px solid var(--accent, #5a8dcc);
+  border-left: 3px solid var(--color-accent, #5a8dcc);
 }
 
 .warn {

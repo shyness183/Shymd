@@ -5,7 +5,14 @@ import { PopoverMenu, type PopoverMenuItem } from '../PopoverMenu/PopoverMenu'
 import {
   exportHTML, saveMarkdown, saveMarkdownAs, openMarkdown, openFolder, newFile,
 } from '../../lib/fileActions'
-import { cmdFind, cmdReplace } from '../../lib/editorCommands'
+import {
+  cmdUndo, cmdRedo, cmdCut, cmdCopy, cmdPaste, cmdSelectAll,
+  cmdFind, cmdReplace, getEditorView,
+} from '../../lib/editorCommands'
+import {
+  htmlUndo, htmlRedo, htmlCut, htmlCopy, htmlPaste, htmlSelectAll,
+  getCERoot,
+} from '../../lib/htmlEditorCommands'
 import { isTauri } from '../../lib/filesystem'
 import styles from './Toolbar.module.css'
 
@@ -95,6 +102,14 @@ export function Toolbar() {
       ]
     : [{ label: t('menu.file.recent') + ' (∅)', disabled: true }]
 
+  // Mode-aware dispatch for edit commands
+  const isWysiwyg = () => editorMode === 'wysiwyg' && !!getCERoot()
+  const isSource = () => editorMode === 'source' && !!getEditorView()
+  const dispatchEdit = (srcFn: () => void, htmlFn: () => void) => () => {
+    if (isWysiwyg()) htmlFn()
+    else if (isSource()) srcFn()
+  }
+
   const kebabItems: PopoverMenuItem[] = [
     {
       label: t('menu.file'),
@@ -115,13 +130,13 @@ export function Toolbar() {
     {
       label: t('menu.edit'),
       children: [
-        { label: t('menu.edit.undo'), shortcut: 'Ctrl+Z', onClick: () => document.execCommand('undo') },
-        { label: t('menu.edit.redo'), shortcut: 'Ctrl+Shift+Z', onClick: () => document.execCommand('redo') },
+        { label: t('menu.edit.undo'), shortcut: 'Ctrl+Z', onClick: dispatchEdit(cmdUndo, htmlUndo) },
+        { label: t('menu.edit.redo'), shortcut: 'Ctrl+Shift+Z', onClick: dispatchEdit(cmdRedo, htmlRedo) },
         { separator: true },
-        { label: t('menu.edit.cut'), shortcut: 'Ctrl+X', onClick: () => document.execCommand('cut') },
-        { label: t('menu.edit.copy'), shortcut: 'Ctrl+C', onClick: () => document.execCommand('copy') },
-        { label: t('menu.edit.paste'), shortcut: 'Ctrl+V', onClick: () => document.execCommand('paste') },
-        { label: t('menu.edit.selectAll'), shortcut: 'Ctrl+A', onClick: () => document.execCommand('selectAll') },
+        { label: t('menu.edit.cut'), shortcut: 'Ctrl+X', onClick: dispatchEdit(cmdCut, htmlCut) },
+        { label: t('menu.edit.copy'), shortcut: 'Ctrl+C', onClick: dispatchEdit(cmdCopy, htmlCopy) },
+        { label: t('menu.edit.paste'), shortcut: 'Ctrl+V', onClick: dispatchEdit(cmdPaste, htmlPaste) },
+        { label: t('menu.edit.selectAll'), shortcut: 'Ctrl+A', onClick: dispatchEdit(cmdSelectAll, htmlSelectAll) },
         { separator: true },
         { label: t('menu.edit.find'), shortcut: 'Ctrl+F', onClick: dispatchFind },
         { label: t('menu.edit.replace'), shortcut: 'Ctrl+H', onClick: dispatchReplace },

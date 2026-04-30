@@ -5,6 +5,7 @@ import {
   cmdTaskList, cmdCodeBlock, cmdMathBlock, cmdHorizontalRule,
   cmdBold, cmdItalic, cmdUnderline, cmdStrikethrough, cmdInlineCode,
   cmdInlineMath, cmdHighlight, cmdHyperlink, cmdImage,
+  cmdUndo, cmdRedo, cmdCut, cmdCopy, cmdPaste, cmdSelectAll,
   cmdFind, cmdReplace, getEditorView,
 } from '../../lib/editorCommands'
 import {
@@ -12,7 +13,8 @@ import {
   htmlHighlight, htmlHyperlink, htmlHeading, htmlParagraph,
   htmlQuote, htmlUnorderedList, htmlOrderedList, htmlTaskList,
   htmlCodeBlock, htmlImage, htmlInlineMath, htmlMathBlock,
-  htmlHorizontalRule, getCERoot, saveSelection,
+  htmlHorizontalRule, htmlUndo, htmlRedo, htmlCut, htmlCopy, htmlPaste,
+  htmlSelectAll, getCERoot, saveSelection,
 } from '../../lib/htmlEditorCommands'
 import { exportHTML, saveMarkdown, saveMarkdownAs, openMarkdown, openFolder, newFile } from '../../lib/fileActions'
 import { MenuDropdown } from './MenuDropdown'
@@ -93,13 +95,13 @@ export function MenuBar() {
   ]
 
   const editMenu: MenuItem[] = [
-    { label: t('menu.edit.undo'), shortcut: 'Ctrl+Z', onClick: () => document.execCommand('undo') },
-    { label: t('menu.edit.redo'), shortcut: 'Ctrl+Shift+Z', onClick: () => document.execCommand('redo') },
+    { label: t('menu.edit.undo'), shortcut: 'Ctrl+Z', onClick: dispatch(cmdUndo, htmlUndo) },
+    { label: t('menu.edit.redo'), shortcut: 'Ctrl+Shift+Z', onClick: dispatch(cmdRedo, htmlRedo) },
     { separator: true, label: '' },
-    { label: t('menu.edit.cut'), shortcut: 'Ctrl+X', onClick: () => document.execCommand('cut') },
-    { label: t('menu.edit.copy'), shortcut: 'Ctrl+C', onClick: () => document.execCommand('copy') },
-    { label: t('menu.edit.paste'), shortcut: 'Ctrl+V', onClick: () => document.execCommand('paste') },
-    { label: t('menu.edit.selectAll'), shortcut: 'Ctrl+A', onClick: () => document.execCommand('selectAll') },
+    { label: t('menu.edit.cut'), shortcut: 'Ctrl+X', onClick: dispatch(cmdCut, htmlCut) },
+    { label: t('menu.edit.copy'), shortcut: 'Ctrl+C', onClick: dispatch(cmdCopy, htmlCopy) },
+    { label: t('menu.edit.paste'), shortcut: 'Ctrl+V', onClick: dispatch(cmdPaste, htmlPaste) },
+    { label: t('menu.edit.selectAll'), shortcut: 'Ctrl+A', onClick: dispatch(cmdSelectAll, htmlSelectAll) },
     { separator: true, label: '' },
     {
       label: t('menu.edit.find'),

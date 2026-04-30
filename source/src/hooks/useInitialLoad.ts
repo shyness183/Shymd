@@ -25,37 +25,39 @@ export function useInitialLoad() {
     if (!isTauri()) return
     if (!fileStoragePath) return
 
-    let cancelled = false
+    // Use a monotonically-increasing sequence number instead of a boolean
+    // `cancelled` flag.  Rapid A→B→A path changes would reuse a boolean
+    // (it gets reset to `false` by the latest effect run), accepting a
+    // stale result from the first scan.  A counter avoids this entirely.
+    const seq = ++_loadSeq
+    const targetPath = fileStoragePath // snapshot for the async closure
+
     ;(async () => {
       try {
-        const exists = await pathExists(fileStoragePath)
-        if (cancelled) return
+        const exists = await pathExists(targetPath)
+        if (seq !== _loadSeq) return
         if (!exists) {
-          // Visible feedback — otherwise the user sees an empty sidebar
-          // and thinks the folder is genuinely empty.
-          showToast(`文件存储路径不存在：${fileStoragePath}`, 'warn', 5000)
+          showToast(`文件存储路径不存在：${targetPath}`, 'warn', 5000)
           useAppStore.setState({ files: [] })
           return
         }
 
-        const tree = await readDirTree(fileStoragePath)
-        if (cancelled) return
+        const tree = await readDirTree(targetPath)
+        if (seq !== _loadSeq) return
 
-        // Populate the sidebar with what's on disk, but leave the editor
-        // blank — user picks which file to open.
         useAppStore.setState({ files: tree })
       } catch (err) {
+        if (seq !== _loadSeq) return
         console.error('Failed to load file tree from fileStoragePath:', err)
         showToast(
-          `无法读取文件夹，请检查权限：${fileStoragePath}`,
+          `无法读取文件夹，请检查权限：${targetPath}`,
           'error',
           5000,
         )
       }
     })()
-
-    return () => {
-      cancelled = true
-    }
   }, [fileStoragePath])
 }
+
+// Module-level sequence counter — each effect run gets a unique ID.
+let _loadSeq = 0

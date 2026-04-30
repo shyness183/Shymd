@@ -104,15 +104,27 @@ md.use((mdInstance: MarkdownIt) => {
 // ── Mermaid post-render ──
 
 let mermaidReady: Promise<typeof import('mermaid')> | null = null
+let mermaidTheme: string | null = null
+
+function getMermaidTheme(): string {
+  const attr = document.documentElement.getAttribute('data-theme') || ''
+  return ['dark', 'monokai', 'dracula', 'one-dark'].includes(attr) ? 'dark' : 'default'
+}
 
 function getMermaid() {
+  const currentTheme = getMermaidTheme()
+  // Re-initialise if the theme changed since last render (e.g. user switched
+  // from light to dark).  Mermaid's `initialize` is per-import, so we must
+  // re-import to apply a new theme.
+  if (mermaidReady && mermaidTheme !== currentTheme) {
+    mermaidReady = null
+  }
   if (!mermaidReady) {
+    mermaidTheme = currentTheme
     mermaidReady = import('mermaid').then((m) => {
       m.default.initialize({
         startOnLoad: false,
-        theme: ['dark', 'monokai', 'dracula', 'one-dark'].includes(
-          document.documentElement.getAttribute('data-theme') || ''
-        ) ? 'dark' : 'default',
+        theme: mermaidTheme,
         securityLevel: 'loose',
       })
       return m

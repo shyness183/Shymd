@@ -35,6 +35,13 @@ let _resolve: ((r: DeleteChoice) => void) | null = null
  *   - 'cancel' → user cancelled
  */
 export function showDeleteDialog(opts: DeleteDialogOptions): Promise<DeleteChoice> {
+  // If a dialog is already showing, resolve the previous one as cancelled
+  // so its promise doesn't leak unresolved.
+  if (_resolve) {
+    const prev = _resolve
+    _resolve = null
+    prev('cancel')
+  }
   return new Promise((resolve) => {
     _resolve = resolve
     useDeleteDialogStore.getState()._show(opts)
@@ -46,4 +53,13 @@ export function commitDeleteDialog(choice: DeleteChoice) {
   useDeleteDialogStore.getState()._hide()
   _resolve?.(choice)
   _resolve = null
+  // Restore editor focus so the user can keep typing without clicking back.
+  setTimeout(async () => {
+    const { getCERoot } = await import('./htmlEditorCommands')
+    const { getEditorView } = await import('./editorCommands')
+    const root = getCERoot()
+    if (root) { root.focus(); return }
+    const view = getEditorView()
+    view?.focus()
+  }, 0)
 }

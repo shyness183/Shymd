@@ -16,6 +16,9 @@ import { showToast } from '../components/Toast/Toast'
  */
 export function useAutosave() {
   const timerRef = useRef<number | null>(null)
+  // Track whether we've already warned the user about missing disk path
+  // so we only show the toast once per session.
+  const warnedNoPathRef = useRef(false)
 
   const activeAbsolutePath = useAppStore((s) => s.activeAbsolutePath)
   const doc = useAppStore((s) => s.doc)
@@ -26,7 +29,13 @@ export function useAutosave() {
   useEffect(() => {
     if (!autoSave) return
     if (!isTauri()) return
-    if (!activeAbsolutePath) return
+    if (!activeAbsolutePath) {
+      if (!warnedNoPathRef.current && doc.trim()) {
+        warnedNoPathRef.current = true
+        showToast('自动保存未生效 — 请先用 Ctrl+S 保存文件到磁盘', 'warn')
+      }
+      return
+    }
     if (timerRef.current) window.clearTimeout(timerRef.current)
     timerRef.current = window.setTimeout(() => {
       writeFileText(activeAbsolutePath, doc)
@@ -48,8 +57,11 @@ export function useAutosave() {
       if (!s.settings.autoSave) return
       if (!isTauri()) return
       if (!s.activeAbsolutePath) return
-      writeFileText(s.activeAbsolutePath, s.doc).catch(() => {
-        // best-effort — ignore errors on close
+      writeFileText(s.activeAbsolutePath, s.doc).catch((err) => {
+        console.error('Autosave flush on close failed:', err)
+        // Show a toast so the user knows their changes may be lost.
+        // We can't block the close, but at least the user is informed.
+        showToast('关闭前保存失败，请检查文件权限', 'error', 4000)
       })
     }
     const onVisibility = () => {

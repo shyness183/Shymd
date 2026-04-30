@@ -60,6 +60,9 @@ export async function saveMarkdown() {
       const filePath = joinPath(settings.fileStoragePath, [filename])
       await writeFileText(filePath, doc)
       useAppStore.getState().markSaved()
+      // Record the absolute path so subsequent autosave / Ctrl+S write
+      // directly to this file instead of asking for the workspace again.
+      useAppStore.setState({ activeAbsolutePath: filePath })
       return
     } catch (err) {
       await dialog.message(
@@ -107,7 +110,8 @@ export async function saveMarkdownAs() {
 
 export async function exportHTML() {
   const { doc, activeFile, settings } = useAppStore.getState()
-  const title = (activeFile || 'document').replace(/\.md$/, '')
+  const rawTitle = (activeFile || 'document').replace(/\.md$/, '')
+  const title = rawTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   const body = md.render(doc)
   const html = `<!doctype html>
 <html>

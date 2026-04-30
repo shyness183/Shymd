@@ -27,6 +27,15 @@ export function MathDialog() {
   const [err, setErr] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Resolve the promise with null if the component unmounts while the
+  // dialog is still open (e.g. editor mode switch), preventing a leaked
+  // hanging promise.
+  useEffect(() => {
+    return () => {
+      if (open) commitMathDialog(null)
+    }
+  }, [open])
+
   // Sync local input state whenever the dialog is (re)opened.
   useEffect(() => {
     if (!open) return
@@ -72,7 +81,10 @@ export function MathDialog() {
   const confirm = () => {
     const final = tex.trim()
     if (!final) { textareaRef.current?.focus(); return }
-    if (err) return   // Disallow confirming an invalid formula.
+    // Use previewErr (synchronously computed) instead of the state `err`
+    // which lags behind by one render — otherwise Ctrl+Enter can slip
+    // through before the useEffect has committed the error to state.
+    if (previewErr) return
     commitMathDialog({ tex: final, display })
   }
 

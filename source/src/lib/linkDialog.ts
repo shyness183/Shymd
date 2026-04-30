@@ -22,6 +22,13 @@ let _resolve: ((r: LinkDialogResult) => void) | null = null
 
 /** Open the custom link dialog. Returns { text, url } or null if cancelled. */
 export function showLinkDialog(text = '', url = ''): Promise<LinkDialogResult> {
+  // If a dialog is already showing, resolve the previous one as cancelled
+  // so its promise doesn't leak unresolved.
+  if (_resolve) {
+    const prev = _resolve
+    _resolve = null
+    prev(null)
+  }
   return new Promise((resolve) => {
     _resolve = resolve
     useLinkDialogStore.getState()._show(text, url)
@@ -33,4 +40,13 @@ export function commitLinkDialog(result: LinkDialogResult) {
   useLinkDialogStore.getState()._hide()
   _resolve?.(result)
   _resolve = null
+  // Restore editor focus so the user can keep typing without clicking back.
+  setTimeout(async () => {
+    const { getCERoot } = await import('./htmlEditorCommands')
+    const { getEditorView } = await import('./editorCommands')
+    const root = getCERoot()
+    if (root) { root.focus(); return }
+    const view = getEditorView()
+    view?.focus()
+  }, 0)
 }

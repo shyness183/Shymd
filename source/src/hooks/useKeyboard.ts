@@ -115,8 +115,12 @@ export function useKeyboard() {
           navigator.clipboard.writeText(_td.turndown(div.innerHTML))
           return
         }
-        // Source mode or no selection: copy full document markdown
-        navigator.clipboard.writeText(doc)
+        // Source mode: copy full document markdown.  In WYSIWYG mode with
+        // no selection, don't silently copy the entire document — the user
+        // likely pressed the shortcut unintentionally.
+        if (hasSourceView()) {
+          navigator.clipboard.writeText(doc)
+        }
         return
       }
       // Paste as plain text (Ctrl+Shift+V)

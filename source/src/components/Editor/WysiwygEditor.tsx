@@ -168,6 +168,85 @@ turndown.addRule('frontMatter', {
   },
 })
 
+// ─── Cursor anchor injection ────────────────────────────────────────
+// After markdown re-renders into the contentEditable, inline format
+// elements (mark, strong, em, code, etc.) that sit at the end of a
+// block element have no text node after them.  contentEditable then
+// places the caret inside the wrapper when the user clicks past it,
+// so typing inherits the format.  Inject a ZWSP text node as a
+// clickable cursor anchor so the user can place the caret outside.
+// Block-level elements (pre, table, hr, blockquote) that are the last
+// child of the editor root also need a trailing paragraph, otherwise
+// the user cannot click-click out of them.
+const INLINE_TAGS = new Set([
+  'MARK', 'STRONG', 'B', 'EM', 'I', 'U', 'DEL', 'S', 'CODE', 'A',
+])
+const TAIL_BLOCK_TAGS = new Set([
+  'PRE', 'TABLE', 'HR', 'BLOCKQUOTE', 'OL', 'UL',
+])
+
+function injectCursorAnchors(root: HTMLElement) {
+  const blocks = root.querySelectorAll(
+    'p, div, li, td, th, h1, h2, h3, h4, h5, h6',
+  )
+  for (const block of blocks) {
+    // Skip blocks that are truly empty (no visible text).
+    if (!block.textContent?.replace(/\u200B/g, '').trim()) continue
+    let lastEl: HTMLElement | null = null
+    // Walk the lastChild chain to find the deepest last element child.
+    let node: Node | null = block.lastChild
+    while (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        // Text node found — cursor can already anchor here.  Unless this
+        // text lives inside an inline-format wrapper (checked below), the
+        // block is fine as-is.
+        break
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = (node as HTMLElement).tagName
+        if (INLINE_TAGS.has(tag)) {
+          lastEl = node as HTMLElement
+          node = node.lastChild // keep walking — may have nested inlines (e.g. <strong><mark>text</mark></strong>)
+          continue
+        }
+        // Non-inline element (e.g. <br>, <input>, <img>) — no anchor needed.
+        break
+      }
+      break
+    }
+    if (!lastEl) continue
+    // The deepest-last element is still inside an inline wrapper that
+    // sits at the end of the block.  Add a ZWSP after the outermost
+    // inline wrapper so the caret can land outside it.
+    let wrapper: Node | null = lastEl
+    while (wrapper && wrapper.parentNode !== block) {
+      wrapper = wrapper.parentNode
+    }
+    if (!wrapper) continue
+    const next = wrapper.nextSibling
+    if (next && next.nodeType === Node.TEXT_NODE && (next as Text).data === '\u200B') continue
+    const zwsp = document.createTextNode('\u200B')
+    wrapper.parentNode?.insertBefore(zwsp, wrapper.nextSibling)
+  }
+
+  // ─── Trailing-paragraph injection for editor-root block elements ──
+  // When a <pre>, <table>, <hr>, <blockquote>, <ol> or <ul> is the last
+  // child of the contentEditable root, the user has no clickable area
+  // after it to continue typing.  Append a minimal paragraph as anchor.
+  const lastRootChild = root.lastChild
+  if (lastRootChild && lastRootChild.nodeType === Node.ELEMENT_NODE) {
+    const tag = (lastRootChild as HTMLElement).tagName
+    if (TAIL_BLOCK_TAGS.has(tag)) {
+      const next = lastRootChild.nextSibling
+      if (!next || next.nodeType !== Node.ELEMENT_NODE || (next as HTMLElement).tagName !== 'P') {
+        const trailing = document.createElement('p')
+        trailing.innerHTML = '<br>'
+        root.appendChild(trailing)
+      }
+    }
+  }
+}
+
 // ─── Main editor ────────────────────────────────────────────────────
 export function WysiwygEditor() {
   const doc = useAppStore((s) => s.doc)
@@ -185,6 +264,7 @@ export function WysiwygEditor() {
     const el = rootRef.current
     if (!el) return
     el.innerHTML = md.render(doc)
+    injectCursorAnchors(el)
     injectTOC(el)
     renderMermaidBlocks(el)
     resolveRelativeAssets(el, activeAbsolutePath)
@@ -306,6 +386,7 @@ export function WysiwygEditor() {
     const current = turndown.turndown(cleanClone.innerHTML.replace(/​/g, '')).trim()
     if (current.trim() !== doc.trim() && document.activeElement !== el) {
       el.innerHTML = md.render(doc)
+      injectCursorAnchors(el)
       injectTOC(el)
       renderMermaidBlocks(el)
       resolveRelativeAssets(el, activeAbsolutePath)
@@ -320,7 +401,12 @@ export function WysiwygEditor() {
   //     they're transient UI hints, not real content.
   const scheduleSave = () => {
     if (timerRef.current) window.clearTimeout(timerRef.current)
+    // Snapshot the file key at scheduling time so the callback discards
+    // the save if the user switched files before the 400ms debounce fires.
+    const fileKey = useAppStore.getState().activeFilePath.join('/')
     timerRef.current = window.setTimeout(() => {
+      const currentKey = useAppStore.getState().activeFilePath.join('/')
+      if (currentKey !== fileKey) return
       const el = rootRef.current
       if (!el) return
       // Clone so we can mutate without affecting the live editor DOM.
@@ -352,8 +438,8 @@ export function WysiwygEditor() {
       node = node.parentNode
     }
     if (!block) return
-    // Normalize non-breaking spaces (\u00A0) to regular spaces for matching
-    const text = (block.textContent || '').replace(/\u00A0/g, ' ')
+    // Normalize non-breaking spaces (\u00A0) and ZWSP cursor anchors to regular spaces for matching
+    const text = (block.textContent || '').replace(/\u200B/g, '').replace(/\u00A0/g, ' ')
 
     const place = (n: Node, off = 0) => {
       const r = document.createRange(); r.setStart(n, off); r.collapse(true)
@@ -472,7 +558,7 @@ export function WysiwygEditor() {
         n = n.parentNode
       }
       if (block) {
-        const txt = (block.textContent || '').replace(/\u00A0/g, ' ').trim()
+        const txt = (block.textContent || '').replace(/\u200B/g, '').replace(/\u00A0/g, ' ').trim()
         const m = txt.match(/^```([\w-]*)$/)
         if (m) {
           e.preventDefault()
@@ -485,6 +571,13 @@ export function WysiwygEditor() {
           code.textContent = '\u200B'
           pre.appendChild(code)
           block.replaceWith(pre)
+          // Ensure a paragraph exists after the <pre> so the user can
+          // click outside the code block to place the cursor.
+          if (!pre.nextSibling) {
+            const trailing = document.createElement('p')
+            trailing.innerHTML = '<br>'
+            pre.parentNode?.appendChild(trailing)
+          }
           // Place caret at the start of <code> (before the ZWSP).
           const r = document.createRange()
           r.setStart(code.firstChild!, 0); r.collapse(true)
@@ -550,7 +643,7 @@ export function WysiwygEditor() {
         }
         n = n.parentNode
       }
-      const currentText = (pNode?.textContent || '').trim()
+      const currentText = (pNode?.textContent || '').replace(/\u200B/g, '').trim()
       // Empty paragraph + Enter → split the blockquote at this point.
       // The empty <p> becomes a regular paragraph between two halves.
       // Children before pNode stay in the original bq; children AFTER
@@ -578,9 +671,12 @@ export function WysiwygEditor() {
         }
 
         pNode.remove()
-        // If pNode was the only child, the original bq is now empty —
-        // remove the husk.
-        if (!bq.children.length) bq.remove()
+        // If the original bq is now empty (no element children AND no bare
+        // text content), remove the husk.  We check both children (elements)
+        // and textContent (bare text nodes) because execCommand('formatBlock',
+        // '<blockquote>') can produce <blockquote>text</blockquote> without
+        // a wrapping <p> — checking only children.length would lose content.
+        if (!bq.children.length && !bq.textContent?.trim()) bq.remove()
 
         const r = document.createRange()
         r.setStart(escape, 0); r.collapse(true)
@@ -597,7 +693,7 @@ export function WysiwygEditor() {
         tail.setStart(range.endContainer, range.endOffset)
         tail.setEndAfter(pNode.lastChild || pNode)
         const frag = tail.extractContents()
-        if (frag.textContent?.trim() || frag.childNodes.length > 0) {
+        if (frag.textContent?.replace(/\u200B/g, '').trim() || frag.childNodes.length > 0) {
           newP.appendChild(frag)
         } else {
           newP.appendChild(document.createElement('br'))
@@ -626,7 +722,7 @@ export function WysiwygEditor() {
     // Check if list item text is empty (ignore checkbox for task lists)
     const textClone = li.cloneNode(true) as HTMLElement
     textClone.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.remove())
-    const text = textClone.textContent?.trim() || ''
+    const text = (textClone.textContent || '').replace(/\u200B/g, '').trim()
 
     if (!text) {
       // Empty list item. If this is the ONLY item in the list (i.e., the
@@ -722,7 +818,7 @@ export function WysiwygEditor() {
       newLi.appendChild(document.createTextNode(' '))
     }
 
-    if (afterFrag.textContent?.trim()) {
+    if (afterFrag.textContent?.replace(/\u200B/g, '').trim()) {
       newLi.appendChild(afterFrag)
     } else {
       newLi.appendChild(document.createElement('br'))
@@ -735,7 +831,7 @@ export function WysiwygEditor() {
     }
 
     // If current li is now visually empty, add <br>
-    if (!li.textContent?.trim() && !li.querySelector('input[type="checkbox"]')) {
+    if (!li.textContent?.replace(/\u200B/g, '').trim() && !li.querySelector('input[type="checkbox"]')) {
       li.appendChild(document.createElement('br'))
     }
 

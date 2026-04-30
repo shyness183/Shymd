@@ -19,10 +19,16 @@ export function LinkDialog() {
 
   if (!open) return null
 
+  const DANGEROUS = /^(javascript|data|vbscript):/i
   const confirm = () => {
     const t = textRef.current?.value.trim() ?? ''
     const u = urlRef.current?.value.trim() ?? ''
     if (!u) { urlRef.current?.focus(); return }
+    if (DANGEROUS.test(u)) {
+      urlRef.current?.focus()
+      urlRef.current?.select()
+      return
+    }
     commitLinkDialog({ text: t, url: u })
   }
 
