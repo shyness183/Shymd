@@ -91,7 +91,7 @@ export function SlashMenu() {
       // menu — except when the slash is immediately preceded by another
       // `/` (avoids URL paths like `https://` and `path/to/file`
       // hijacking every keystroke).
-      const m = textBefore.match(/(^|[^/])\/([^\s/]*)$/)
+      const m = textBefore.match(/(^|\s)\/([^\s/]*)$/)
       if (m) {
         const slashPos = from - (m[2].length + 1)
         const coords = v.coordsAtPos(slashPos)
@@ -112,12 +112,13 @@ export function SlashMenu() {
 
     const onKey = (e: KeyboardEvent) => {
       if (!stateRef.current || stateRef.current.mode !== 'source') return
-      if (e.key === 'Escape') { e.preventDefault(); close() }
-      if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, filtered.length - 1)) }
-      if (e.key === 'ArrowUp')   { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)) }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close() }
+      if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); setIndex((i) => Math.min(i + 1, filtered.length - 1)) }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); e.stopPropagation(); setIndex((i) => Math.max(i - 1, 0)) }
       if (e.key === 'Enter' || e.key === 'Tab') {
         if (filtered.length > 0) {
           e.preventDefault()
+          e.stopPropagation()
           runCommand(filtered[index])
         }
       }
@@ -157,7 +158,7 @@ export function SlashMenu() {
       const before = textNode.nodeValue?.slice(0, offset) || ''
       // Fully relaxed trigger: any `/` opens the menu unless preceded
       // by another `/` (URL paths).
-      const m = before.match(/(^|[^/])\/([^\s/]*)$/)
+      const m = before.match(/(^|\s)\/([^\s/]*)$/)
       if (m) {
         const textOffset = offset - (m[2].length + 1)
         const range = document.createRange()
@@ -182,12 +183,13 @@ export function SlashMenu() {
     const onInput = () => scan()
     const onKey = (e: KeyboardEvent) => {
       if (!stateRef.current || stateRef.current.mode !== 'wysiwyg') return
-      if (e.key === 'Escape') { e.preventDefault(); close() }
-      if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, filtered.length - 1)) }
-      if (e.key === 'ArrowUp')   { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)) }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close() }
+      if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); setIndex((i) => Math.min(i + 1, filtered.length - 1)) }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); e.stopPropagation(); setIndex((i) => Math.max(i - 1, 0)) }
       if (e.key === 'Enter' || e.key === 'Tab') {
         if (filtered.length > 0) {
           e.preventDefault()
+          e.stopPropagation()
           runCommand(filtered[index])
         }
       }

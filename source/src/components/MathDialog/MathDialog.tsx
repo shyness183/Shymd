@@ -24,7 +24,6 @@ export function MathDialog() {
   const { open, initialTex, initialDisplay } = useMathDialogStore()
   const [tex, setTex] = useState('')
   const [display, setDisplay] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Resolve the promise with null if the component unmounts while the
@@ -41,7 +40,6 @@ export function MathDialog() {
     if (!open) return
     setTex(initialTex)
     setDisplay(initialDisplay)
-    setErr(null)
     // Focus + select so the user can immediately start typing / overwrite.
     const h = window.setTimeout(() => {
       const ta = textareaRef.current
@@ -69,12 +67,6 @@ export function MathDialog() {
       return { previewHtml: '', previewErr: msg }
     }
   }, [tex, display])
-
-  // Mirror the memoised error into local state so the legacy `err`
-  // variable (used by the confirm-disable logic) stays in sync.
-  useEffect(() => {
-    setErr(previewErr)
-  }, [previewErr])
 
   if (!open) return null
 
@@ -151,8 +143,8 @@ export function MathDialog() {
 
         <div className={styles.previewLabel}>预览</div>
         <div className={styles.preview}>
-          {err ? (
-            <div className={styles.error}>{err}</div>
+          {previewErr ? (
+            <div className={styles.error}>{previewErr}</div>
           ) : previewHtml ? (
             <div
               className={display ? styles.previewDisplay : styles.previewInline}
@@ -186,7 +178,7 @@ export function MathDialog() {
           <button
             className={styles.btnConfirm}
             onClick={confirm}
-            disabled={!tex.trim() || !!err}
+            disabled={!tex.trim() || !!previewErr}
           >
             插入
           </button>

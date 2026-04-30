@@ -9,17 +9,8 @@ import {
   replaceMatch,
   type FindMatch,
 } from '../../lib/findReplace'
-import TurndownService from 'turndown'
+import { turndown } from '../../lib/turndownService'
 import styles from './FindReplacePanel.module.css'
-
-// Lightweight turndown for sync-back — reuses WysiwygEditor-style rules
-// at a minimum. Only used when the WYSIWYG surface is active.
-const turndown = new TurndownService({
-  headingStyle: 'atx',
-  codeBlockStyle: 'fenced',
-  bulletListMarker: '-',
-  emDelimiter: '*',
-})
 
 export function FindReplacePanel() {
   const open = useAppStore((s) => s.findOpen)

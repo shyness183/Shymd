@@ -69,7 +69,7 @@
 }
 .wysiwyg.content > p[data-cursor-hint]::before,
 .wysiwyg.content > div[data-cursor-hint]::before {
-  content: "Type /";
+  content: "Type '/' to Insert";
   position: absolute;
   left: 0.7em;
   top: 0;

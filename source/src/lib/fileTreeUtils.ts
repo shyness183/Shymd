@@ -74,26 +74,6 @@ export function renameNodeInTree(
   return clone
 }
 
-/** Update file content by walking the entire tree to find a file by name.
- *  DEPRECATED — prefer `updateContentByPath` which is unambiguous with duplicate names. */
-export function updateContentByName(
-  tree: FileNode[],
-  fileName: string,
-  content: string,
-): FileNode[] {
-  const clone = cloneTree(tree)
-  const stack: FileNode[] = [...clone]
-  while (stack.length) {
-    const node = stack.pop()!
-    if (node.type === 'file' && node.name === fileName) {
-      node.content = content
-      return clone
-    }
-    if (node.children) stack.push(...node.children)
-  }
-  return clone
-}
-
 /** Update file content at an exact path. Safe against duplicate filenames.
  *  Uses structural sharing — only clones nodes along the path to the target,
  *  not the entire tree.  Called on every keystroke, so this matters for

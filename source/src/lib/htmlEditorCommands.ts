@@ -1,4 +1,4 @@
-// Commands for the contentEditable WYSIWYG surface.
+﻿// Commands for the contentEditable WYSIWYG surface.
 // These operate on the current document selection using execCommand
 // and plain DOM. execCommand is deprecated but remains the pragmatic
 // choice for Typora-style editors where we need live formatting.
@@ -24,6 +24,21 @@ export function setCERoot(el: HTMLElement | null) {
 }
 export function getCERoot(): HTMLElement | null {
   return _ceRoot
+}
+
+/**
+ * Restore keyboard focus to whichever editor surface is currently active
+ * (contentEditable or CodeMirror).  Used by dialogs after close so the user
+ * can keep typing without clicking back into the editor.
+ */
+export async function restoreEditorFocus() {
+  // Defer so the dialog backdrop has fully unmounted before we try to focus.
+  await new Promise((r) => setTimeout(r, 0))
+  const root = getCERoot()
+  if (root) { root.focus(); return }
+  const { getEditorView } = await import('./editorCommands')
+  const view = getEditorView()
+  view?.focus()
 }
 
 // ─── Saved selection (for table picker, etc.) ─────────────────────
@@ -380,30 +395,131 @@ export async function htmlHyperlink() {
 
 // ─── Block / paragraph formatting ───────────────────────────────────
 
+/**
+ * After execCommand creates a list/blockquote, Chromium auto-appends an
+ * empty <p> (or <div>) as the "next editing position".  Remove it so the
+ * user stays on the same logical line instead of getting an unwanted
+ * blank line after the insertion.
+ */
+function removeTrailingEmptyBlock() {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !_ceRoot) return
+  let node: Node | null = sel.anchorNode
+  while (node && node !== _ceRoot) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = (node as HTMLElement).tagName
+      if (['UL', 'OL', 'LI', 'BLOCKQUOTE', 'PRE'].includes(tag)) {
+        // For <li>, walk up to the parent <ul>/<ol>.
+        const block = tag === 'LI' ? node.parentNode : node
+        if (block && block.nodeType === Node.ELEMENT_NODE) {
+          const next = block.nextSibling
+          if (next && next.nodeType === Node.ELEMENT_NODE) {
+            const nTag = (next as HTMLElement).tagName
+            if (['P', 'DIV'].includes(nTag) && !next.textContent?.trim()) {
+              next.remove()
+            }
+          }
+        }
+        // Don't return — keep walking up to handle nested lists.
+      }
+    }
+    node = node.parentNode
+  }
+}
+
 function setBlockType(tag: string) {
   if (!selectionInsideRoot()) return
-  // formatBlock requires an uppercase tag name with angle brackets in
-  // some browsers; using the lowercase name with brackets is the safest.
   document.execCommand('formatBlock', false, `<${tag}>`)
+  removeTrailingEmptyBlock()
   focusRoot()
 }
 
 export function htmlParagraph() { setBlockType('p') }
 export function htmlHeading(level: number) { setBlockType(`h${level}`) }
-export function htmlQuote() { setBlockType('blockquote') }
+export function htmlQuote() {
+  if (!selectionInsideRoot()) { if (!restoreSelection()) return }
+  const block = findBlockAtCursor()
+  if (!block) return
+  const bq = document.createElement('blockquote')
+  const p = document.createElement('p')
+  // Move the block's children into the new paragraph inside blockquote
+  while (block.firstChild) p.appendChild(block.firstChild)
+  if (!p.textContent?.replace(/​/g, '').trim()) {
+    p.appendChild(document.createElement('br'))
+  }
+  bq.appendChild(p)
+  block.replaceWith(bq)
+  const sel = window.getSelection()
+  if (sel) {
+    const r = document.createRange()
+    r.setStart(p, 0)
+    r.collapse(true)
+    sel.removeAllRanges()
+    sel.addRange(r)
+  }
+  removeTrailingEmptyBlock()
+  focusRoot()
+}
+
+
+/**
+ * Walk up from the selection anchor to find the nearest block-level element,
+ * stopping at the editor root.  Returns null when the cursor is not inside a
+ * recognised block tag (P, DIV, LI, heading, TH, TD).
+ */
+function findBlockAtCursor(): HTMLElement | null {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !_ceRoot) return null
+  let node: Node | null = sel.anchorNode
+  while (node && node !== _ceRoot) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const t = (node as HTMLElement).tagName
+      if (['P','DIV','LI','H1','H2','H3','H4','H5','H6','TH','TD'].includes(t)) {
+        return node as HTMLElement
+      }
+    }
+    node = node.parentNode
+  }
+  return null
+}
+
+/**
+ * Replace `block` with a fresh list containing a single item whose content
+ * is the block's previous children.  Avoids execCommand entirely so Chromium
+ * cannot silently pull the previous sibling paragraph into the new list.
+ */
+function wrapBlockInList(listTag: 'ul' | 'ol', block: HTMLElement) {
+  const list = document.createElement(listTag)
+  const li = document.createElement('li')
+  while (block.firstChild) li.appendChild(block.firstChild)
+  if (!li.textContent?.replace(/​/g, '').trim()) {
+    li.appendChild(document.createElement('br'))
+  }
+  list.appendChild(li)
+  block.replaceWith(list)
+  const sel = window.getSelection()
+  if (sel) {
+    const r = document.createRange()
+    r.setStart(li, 0)
+    r.collapse(true)
+    sel.removeAllRanges()
+    sel.addRange(r)
+  }
+  removeTrailingEmptyBlock()
+  focusRoot()
+}
 
 export function htmlUnorderedList() {
-  if (!selectionInsideRoot()) return
-  document.execCommand('insertUnorderedList')
-  focusRoot()
+  if (!selectionInsideRoot()) { if (!restoreSelection()) return }
+  const block = findBlockAtCursor()
+  if (block) { wrapBlockInList('ul', block); return }
 }
 
 export function htmlOrderedList() {
-  if (!selectionInsideRoot()) return
-  document.execCommand('insertOrderedList')
-  focusRoot()
+  if (!selectionInsideRoot()) { if (!restoreSelection()) return }
+  const block = findBlockAtCursor()
+  if (block) { wrapBlockInList('ol', block); return }
 }
-
 // Task list: insert a <ul class="task-list"><li class="task-list-item">…</li></ul>
 // The new <li> contains exactly the selected text (or "任务" if the
 // selection was empty), and the caret moves INTO the new item so the
@@ -434,6 +550,7 @@ export function htmlTaskList() {
   r.collapse(true)
   sel.removeAllRanges()
   sel.addRange(r)
+  removeTrailingEmptyBlock()
   focusRoot()
 }
 
@@ -481,12 +598,14 @@ export function htmlTable(rows: number, cols: number) {
   const range = sel.getRangeAt(0)
   range.deleteContents()
   range.insertNode(table)
-  // Ensure a clickable paragraph exists after the table so the user can
-  // click below it to continue typing.
-  if (!table.nextSibling && table.parentNode === _ceRoot) {
-    const trailing = document.createElement('p')
-    trailing.innerHTML = '<br>'
-    _ceRoot.appendChild(trailing)
+  // No trailing <p> — place cursor in the first data cell.
+  const firstCell = tbody.querySelector('td')
+  if (firstCell) {
+    const r = document.createRange()
+    r.setStart(firstCell, 0)
+    r.collapse(true)
+    const s = window.getSelection()
+    if (s) { s.removeAllRanges(); s.addRange(r) }
   }
   focusRoot()
 }
@@ -495,28 +614,25 @@ export function htmlTable(rows: number, cols: number) {
 // text, no more no less, and drops the caret at the end of the new
 // <code> so the user keeps typing inside the block.
 export function htmlCodeBlock() {
-  if (!selectionInsideRoot()) return
+  if (!selectionInsideRoot()) {
+    if (!restoreSelection()) return
+  }
   const sel = window.getSelection()
   if (!sel || sel.rangeCount === 0) return
   const range = sel.getRangeAt(0)
   const text = sel.toString() || ''
   const pre = document.createElement('pre')
   const code = document.createElement('code')
-  // textContent below replaces the codeText node we put inside, so we
-  // create a stable text node we can re-anchor to for caret placement.
   const codeText = document.createTextNode(text || '\u200B')
   code.appendChild(codeText)
+  // Insert a trailing <br> for empty blocks so the <pre> has visible height.
+  if (!text) code.appendChild(document.createElement('br'))
   pre.appendChild(code)
   range.deleteContents()
   range.insertNode(pre)
-  // Ensure a clickable paragraph exists after the <pre> so the user can
-  // click outside the code block to place the cursor. We only do this
-  // when <pre> is a direct child of _ceRoot and has no sibling after it.
-  if (_ceRoot && !pre.nextSibling && pre.parentNode === _ceRoot) {
-    const trailing = document.createElement('p')
-    trailing.innerHTML = '<br>'
-    _ceRoot.appendChild(trailing)
-  }
+  // No trailing <p> — the user stays inside the code block.
+  // ArrowDown at the end of <pre> (handled in WysiwygEditor.onKeyDown)
+  // lets them exit when they want to.
   const r = document.createRange()
   r.setStart(codeText, codeText.nodeValue?.length ?? 0)
   r.collapse(true)

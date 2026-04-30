@@ -1,6 +1,7 @@
 .panel {
   position: fixed;
-  top: calc(var(--menubar-height) + 10px);
+  top: 80px;
+  /* 36px TitleBar + 36px toolbar row + 8px gap → aligned with editor first line */
   right: 18px;
   z-index: 300;
   background: var(--color-sidebar-bg);

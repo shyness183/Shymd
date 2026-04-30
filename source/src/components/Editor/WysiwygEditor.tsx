@@ -1,172 +1,10 @@
 import { useEffect, useRef } from 'react'
-import TurndownService from 'turndown'
+import { turndown } from '../../lib/turndownService'
 import { md, renderMermaidBlocks, injectTOC, resolveRelativeAssets } from '../../lib/markdown'
 import { useAppStore } from '../../stores/useAppStore'
 import { setCERoot } from '../../lib/htmlEditorCommands'
+import { updateContentByPath } from '../../lib/fileTreeUtils'
 import styles from './Editor.module.css'
-
-// ─── Turndown config ────────────────────────────────────────────────
-const turndown = new TurndownService({
-  headingStyle: 'atx',
-  codeBlockStyle: 'fenced',
-  bulletListMarker: '-',
-  emDelimiter: '*',
-})
-
-// GFM strikethrough
-turndown.addRule('strikethrough', {
-  filter: ['del', 's'] as any,
-  replacement: (content) => `~~${content}~~`,
-})
-
-// Underline — markdown has no canonical syntax for underline, so we
-// preserve <u> as raw HTML. markdown-it has html:true on, so it
-// renders back to <u> on the next pass. Without this rule, turndown
-// would strip the tag and lose the formatting.
-turndown.addRule('underline', {
-  filter: ['u'] as any,
-  replacement: (content) => `<u>${content}</u>`,
-})
-
-// Highlight (mark) — colored marks keep raw HTML so the color round-trips;
-// plain marks become `==text==`.
-turndown.addRule('highlight', {
-  filter: ['mark'] as any,
-  replacement: (content, node) => {
-    const el = node as HTMLElement
-    const bg = el.style?.background || el.style?.backgroundColor
-    if (bg) {
-      return `<mark style="background:${bg}">${content}</mark>`
-    }
-    return `==${content}==`
-  },
-})
-
-// Task list items
-turndown.addRule('taskListItem', {
-  filter: (node) =>
-    node.nodeName === 'LI' &&
-    !!node.querySelector('input[type="checkbox"]'),
-  replacement: (_content, node) => {
-    const el = node as HTMLElement
-    const cb = el.querySelector('input[type="checkbox"]') as HTMLInputElement | null
-    const checked = cb?.checked ? 'x' : ' '
-    // Get text without the checkbox
-    const clone = el.cloneNode(true) as HTMLElement
-    const cc = clone.querySelector('input[type="checkbox"]')
-    if (cc) cc.remove()
-    const text = clone.textContent?.trim() || ''
-    return `- [${checked}] ${text}\n`
-  },
-})
-
-// KaTeX: convert rendered math back to $...$ or $$...$$
-turndown.addRule('katex', {
-  filter: (node) => {
-    const el = node as HTMLElement
-    return el.classList?.contains('katex') || el.tagName === 'EQ' || el.tagName === 'EQN'
-  },
-  replacement: (_content, node) => {
-    const el = node as HTMLElement
-    // Try to find the annotation with TeX source
-    const ann = el.querySelector('annotation[encoding="application/x-tex"]')
-    const tex = ann?.textContent || el.textContent || ''
-    const block = el.tagName === 'EQN' || el.classList?.contains('katex-display')
-    return block ? `\n\n$$${tex}$$\n\n` : `$${tex}$`
-  },
-})
-
-// Preserve <pre><code class="language-xxx"> as fenced code blocks
-turndown.addRule('fencedCodeBlock', {
-  filter: (node) =>
-    node.nodeName === 'PRE' && !!node.firstChild && node.firstChild.nodeName === 'CODE',
-  replacement: (_content, node) => {
-    const code = (node as HTMLElement).querySelector('code')
-    const langClass = code?.className.match(/language-(\w+)/)
-    const lang = langClass ? langClass[1] : ''
-    const text = code?.textContent || ''
-    return '\n\n```' + lang + '\n' + text.replace(/\n$/, '') + '\n```\n\n'
-  },
-})
-
-// Preserve .mermaid-block as ```mermaid fenced blocks
-turndown.addRule('mermaidBlock', {
-  filter: (node) => {
-    const el = node as HTMLElement
-    return el.classList?.contains('mermaid-block') === true
-  },
-  replacement: (_content, node) => {
-    const el = node as HTMLElement
-    // If rendered as SVG, we can't get the source back easily;
-    // use the original textContent if available
-    const svg = el.querySelector('svg')
-    const code = svg ? (el.getAttribute('data-source') || '') : (el.textContent || '')
-    return '\n\n```mermaid\n' + code.trim() + '\n```\n\n'
-  },
-})
-
-// Images — turndown's default swallows images whose src contains
-// parentheses or encoded characters (e.g. Tauri asset:// URLs with
-// %3A). Use an <angle-bracket> URL so the source survives the round
-// trip verbatim.
-turndown.addRule('image', {
-  filter: 'img',
-  replacement: (_content, node) => {
-    const el = node as HTMLImageElement
-    const alt = (el.getAttribute('alt') || '').replace(/[\[\]]/g, '')
-    // Prefer the pre-resolution path stashed by resolveRelativeAssets
-    // so we don't bake asset:// URLs into the saved markdown.
-    const src = el.getAttribute('data-raw-src') || el.getAttribute('src') || ''
-    const title = el.getAttribute('title') || ''
-    if (!src) return ''
-    const needsAngle = /[()\s]/.test(src)
-    const srcPart = needsAngle ? `<${src}>` : src
-    const titlePart = title ? ` "${title.replace(/"/g, '\\"')}"` : ''
-    return `![${alt}](${srcPart}${titlePart})`
-  },
-})
-
-// Tables — turndown's default emits plaintext that doesn't round-trip.
-// Convert to GFM pipe tables which markdown-it's built-in table rule
-// renders back to <table>.
-turndown.addRule('gfmTable', {
-  filter: 'table',
-  replacement: (_content, node) => {
-    const table = node as HTMLTableElement
-    const rows = Array.from(table.rows)
-    if (rows.length === 0) return ''
-    const cellText = (c: HTMLTableCellElement) =>
-      (c.textContent || '').replace(/\|/g, '\\|').replace(/\n+/g, ' ').trim()
-    const headCells = Array.from(rows[0].cells).map(cellText)
-    const cols = headCells.length || 1
-    const header = '| ' + headCells.join(' | ') + ' |'
-    const sep = '| ' + Array(cols).fill('---').join(' | ') + ' |'
-    const body = rows.slice(1).map((r) => {
-      const cells = Array.from(r.cells).map(cellText)
-      while (cells.length < cols) cells.push('')
-      return '| ' + cells.join(' | ') + ' |'
-    })
-    return '\n\n' + [header, sep, ...body].join('\n') + '\n\n'
-  },
-})
-// Skip nested table children so gfmTable has sole control.
-turndown.addRule('tableParts', {
-  filter: ['thead', 'tbody', 'tr', 'th', 'td'] as any,
-  replacement: (content) => content,
-})
-
-// Preserve .front-matter as YAML front matter
-turndown.addRule('frontMatter', {
-  filter: (node) => {
-    const el = node as HTMLElement
-    return el.classList?.contains('front-matter') === true
-  },
-  replacement: (_content, node) => {
-    const code = (node as HTMLElement).querySelector('code')
-    const text = code?.textContent || ''
-    return '---\n' + text.trim() + '\n---\n\n'
-  },
-})
 
 // ─── Cursor anchor injection ────────────────────────────────────────
 // After markdown re-renders into the contentEditable, inline format
@@ -184,6 +22,7 @@ const INLINE_TAGS = new Set([
 const TAIL_BLOCK_TAGS = new Set([
   'PRE', 'TABLE', 'HR', 'BLOCKQUOTE', 'OL', 'UL',
 ])
+const EMPTY_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'PRE'])
 
 function injectCursorAnchors(root: HTMLElement) {
   const blocks = root.querySelectorAll(
@@ -257,17 +96,27 @@ export function WysiwygEditor() {
   const activeFileKey = activeFilePath.join('/')
   const rootRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<number | null>(null)
+  const skipDocSyncRef = useRef(false)
 
   // Initial render & on file change — rebuild HTML from markdown and
   // scroll to the top so the new file starts from its header.
   useEffect(() => {
     const el = rootRef.current
     if (!el) return
-    el.innerHTML = md.render(doc)
+    // Safe default: when the doc is empty, markdown-it renders nothing,
+    // leaving contentEditable with no block elements — the caret has
+    // nowhere to anchor, autoFormat can't find a parent block, and the
+    // "Type /" hint has no <p> to attach to.  Seed a minimal paragraph.
+    const rendered = md.render(doc) || '<p><br></p>'
+    el.innerHTML = rendered
     injectCursorAnchors(el)
     injectTOC(el)
     renderMermaidBlocks(el)
     resolveRelativeAssets(el, activeAbsolutePath)
+    if (!doc.trim()) {
+      const firstP = el.querySelector('p')
+      if (firstP) firstP.setAttribute('data-cursor-hint', 'true')
+    }
     // Scroll the editor and its scrolling ancestor back to the top.
     el.scrollTop = 0
     let parent: HTMLElement | null = el.parentElement
@@ -284,108 +133,57 @@ export function WysiwygEditor() {
     return () => setCERoot(null)
   }, [])
 
-  // Track cursor position to show inline "Type /" hint only on the
-  // currently focused empty paragraph. Uses rAF so the hint is updated
-  // after DOM mutations from Enter/delete have fully settled.
+  // Clean up debounce timer on unmount
   useEffect(() => {
-    let rafId = 0
-    const applyHint = () => {
-      const root = rootRef.current
-      if (!root) return
-      root.querySelectorAll('[data-cursor-hint]').forEach((el) =>
-        el.removeAttribute('data-cursor-hint'),
-      )
-      const sel = window.getSelection()
-      if (!sel || sel.rangeCount === 0) return
-      const anchor = sel.anchorNode
-      if (!anchor || !root.contains(anchor)) return
-      // Empty-paragraph "Type /" hint
-      let node: Node | null = anchor
-      while (node && node.parentNode !== root) node = node.parentNode
-      if (node && node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as HTMLElement
-        if (['P', 'DIV'].includes(el.tagName)) {
-          const text = el.textContent?.replace(/\u200B/g, '') ?? ''
-          const isEmptyBr = el.childNodes.length === 1 && el.firstChild?.nodeName === 'BR'
-          if (text === '' || isEmptyBr) el.setAttribute('data-cursor-hint', 'true')
-        }
-      }
-
-      // ── Live Preview marker reveal (Obsidian-style) ──
-      // Insert real-DOM <span class="md-marker" contenteditable="false">
-      // children at the start and end of every inline format wrapper
-      // ancestor of the caret. Real DOM (instead of ::before/::after
-      // pseudo content) is required because pseudo elements with
-      // pointer-events:none + user-select:none break contentEditable
-      // caret rendering — the cursor literally disappears and typing
-      // fails.  contenteditable=false makes the markers atomic so the
-      // caret skips them.
-      // Markers are stripped before markdown serialization (see
-      // scheduleSave / external-change comparison below).
-      const TAG_MARKERS: Record<string, [string, string]> = {
-        STRONG: ['**', '**'], B: ['**', '**'],
-        EM: ['*', '*'], I: ['*', '*'],
-        U: ['__', '__'],
-        S: ['~~', '~~'], DEL: ['~~', '~~'],
-        MARK: ['==', '=='],
-        CODE: ['`', '`'],
-        // Anchor handled specially — closing form needs the href.
-        A: ['[', ']'],
-      }
-      // Strip every existing marker first (cheap — usually 0–4 spans).
-      root.querySelectorAll('span.md-marker').forEach((m) => m.remove())
-      // Walk ancestors and inject markers.
-      let cur: Node | null = anchor
-      while (cur && cur !== root) {
-        if (cur.nodeType === Node.ELEMENT_NODE) {
-          const el = cur as HTMLElement
-          const tag = el.tagName
-          const tpl = TAG_MARKERS[tag]
-          if (tpl) {
-            const [open, close] = tpl
-            const openSpan = document.createElement('span')
-            openSpan.className = 'md-marker'
-            openSpan.setAttribute('contenteditable', 'false')
-            openSpan.textContent = open
-            const closeSpan = document.createElement('span')
-            closeSpan.className = 'md-marker'
-            closeSpan.setAttribute('contenteditable', 'false')
-            // For <a>, append `(href)` to the closing marker.
-            if (tag === 'A') {
-              closeSpan.textContent = close + '(' + (el.getAttribute('href') ?? '') + ')'
-            } else {
-              closeSpan.textContent = close
-            }
-            el.insertBefore(openSpan, el.firstChild)
-            el.appendChild(closeSpan)
-          }
-        }
-        cur = cur.parentNode
-      }
-    }
-    const scheduleHint = () => {
-      cancelAnimationFrame(rafId)
-      rafId = requestAnimationFrame(applyHint)
-    }
-    document.addEventListener('selectionchange', scheduleHint)
     return () => {
-      document.removeEventListener('selectionchange', scheduleHint)
-      cancelAnimationFrame(rafId)
+      if (timerRef.current) window.clearTimeout(timerRef.current)
     }
   }, [])
+
+  // "Type /" hint, now called from onInput instead of selectionchange.
+  // DOM attribute writes during selectionchange trigger Chromium style
+  // recalc which can corrupt contentEditable input handling.
+  const updateHint = () => {
+    const root = rootRef.current
+    if (!root) return
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return
+    const anchor = sel.anchorNode
+    if (!anchor || !root.contains(anchor)) return
+    root.querySelectorAll('[data-cursor-hint]').forEach((el) =>
+      el.removeAttribute('data-cursor-hint'),
+    )
+    let node: Node | null = anchor
+    while (node && node.parentNode !== root) node = node.parentNode
+    if (node && node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement
+      if (['P', 'DIV'].includes(el.tagName)) {
+        const text = el.textContent?.replace(/​/g, '') ?? ''
+        const isEmptyBr = el.childNodes.length === 1 && el.firstChild?.nodeName === 'BR'
+        if (text === '' || isEmptyBr) el.setAttribute('data-cursor-hint', 'true')
+      }
+    }
+    root.querySelectorAll('span.md-marker').forEach((m) => m.remove())
+  }
 
   // If `doc` changes externally (e.g. programmatic edit, undo), but we
   // are not currently editing this file, sync the DOM. We detect
   // external changes by comparing the current rendered markdown to
-  // the incoming doc.
+  // the incoming doc.  Skip when the change was triggered by our own
+  // scheduleSave (common case, every ~400ms) — the DOM clone + turndown
+  // comparison is pure waste when content is identical.
   useEffect(() => {
     const el = rootRef.current
     if (!el) return
+    if (skipDocSyncRef.current) {
+      skipDocSyncRef.current = false
+      return
+    }
     const cleanClone = el.cloneNode(true) as HTMLElement
     cleanClone.querySelectorAll('span.md-marker').forEach((m) => m.remove())
     const current = turndown.turndown(cleanClone.innerHTML.replace(/​/g, '')).trim()
     if (current.trim() !== doc.trim() && document.activeElement !== el) {
-      el.innerHTML = md.render(doc)
+      el.innerHTML = md.render(doc) || '<p><br></p>'
       injectCursorAnchors(el)
       injectTOC(el)
       renderMermaidBlocks(el)
@@ -401,33 +199,63 @@ export function WysiwygEditor() {
   //     they're transient UI hints, not real content.
   const scheduleSave = () => {
     if (timerRef.current) window.clearTimeout(timerRef.current)
-    // Snapshot the file key at scheduling time so the callback discards
-    // the save if the user switched files before the 400ms debounce fires.
+    // Snapshot the file key AND the DOM NOW, before a file switch can
+    // re-render the contentEditable div with the new file's HTML.
     const fileKey = useAppStore.getState().activeFilePath.join('/')
+    const el = rootRef.current
+    if (!el) return
+    const snap = el.cloneNode(true) as HTMLElement
     timerRef.current = window.setTimeout(() => {
-      const currentKey = useAppStore.getState().activeFilePath.join('/')
-      if (currentKey !== fileKey) return
-      const el = rootRef.current
-      if (!el) return
-      // Clone so we can mutate without affecting the live editor DOM.
-      const clone = el.cloneNode(true) as HTMLElement
-      clone.querySelectorAll('span.md-marker').forEach((m) => m.remove())
-      const html = clone.innerHTML.replace(/​/g, '')
+      snap.querySelectorAll('span.md-marker').forEach((m) => m.remove())
+      const html = snap.innerHTML.replace(/​/g, '')
       const markdown = turndown.turndown(html)
+      const state = useAppStore.getState()
+      const currentKey = state.activeFilePath.join('/')
+      if (currentKey !== fileKey) {
+        // The user switched files during the debounce window.  Still
+        // persist the old file's content in the in-memory tree so that
+        // switching back doesn't lose the unsaved edits.
+        const pathArr = fileKey ? fileKey.split('/').filter(Boolean) : []
+        if (pathArr.length > 0) {
+          useAppStore.setState({
+            files: updateContentByPath(state.files, pathArr, markdown),
+          })
+        }
+        return
+      }
+      skipDocSyncRef.current = true
       setDoc(markdown)
     }, 400)
   }
 
   // ─── Auto-format: detect markdown syntax and convert to HTML ─────
+  const autoFormatRunningRef = useRef(false)
   const autoFormat = () => {
+    if (autoFormatRunningRef.current) return
     const el = rootRef.current
     if (!el) return
     const sel = window.getSelection()
     if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return
 
+    autoFormatRunningRef.current = true
+    try {
+    // Early exit: all auto-format patterns end with a trailing space
+    // ("# ", "- ", "> ", "1. ", "- [ ] ", etc.).  If the character right
+    // before the caret isn't a space, no pattern can match and we can
+    // skip the DOM walk + regex work entirely.
+    const anchorNode = sel.anchorNode
+    const anchorOffset = sel.anchorOffset
+    if (
+      anchorNode &&
+      anchorNode.nodeType === Node.TEXT_NODE &&
+      anchorOffset > 0 &&
+      (anchorNode as Text).nodeValue?.charAt(anchorOffset - 1) !== ' '
+    ) {
+      return
+    }
     // Find block-level parent (P or DIV only — skip existing structures)
     let block: HTMLElement | null = null
-    let node: Node | null = sel.anchorNode
+    let node: Node | null = anchorNode
     while (node && node !== el) {
       if (node.nodeType === Node.ELEMENT_NODE) {
         const tag = (node as HTMLElement).tagName
@@ -523,15 +351,264 @@ export function WysiwygEditor() {
       place(p, 0)
       return
     }
+  } finally {
+    autoFormatRunningRef.current = false
+  }
   }
 
+  // ─── Clean up empty inline formatting wrappers ─────────────────────
+  // When the user deletes all text inside a <mark>, <strong>, <em>, etc.,
+  // the empty wrapper element lingers in the DOM.  Subsequent typing lands
+  // inside it, silently inheriting the formatting.  Remove empty wrappers
+  // from the current block on every input event.
+
+  // Clean empty inline wrappers (<strong></strong> etc.) and empty
+  // block elements (<blockquote>, <pre>) from the entire editor.
+  // Walks the whole root so it catches orphan wrappers regardless
+  // of cursor position.
+  const cleanupEmptyWrappers = () => {
+    const root = rootRef.current
+    if (!root) return
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
+    const inlineHits: HTMLElement[] = []
+    const blockHits: HTMLElement[] = []
+    let n: Node | null
+    while ((n = walker.nextNode())) {
+      const el = n as HTMLElement
+      const text = (el.textContent || '').replace(/​/g, '').trim()
+      if (INLINE_TAGS.has(el.tagName) && !text) {
+        inlineHits.push(el)
+      } else if (EMPTY_BLOCK_TAGS.has(el.tagName)) {
+        const txt = (el.textContent || '').replace(/​/g, '').trim()
+        if (!txt) {
+          blockHits.push(el)
+        } else if (el.tagName === 'BLOCKQUOTE') {
+          const childText = Array.from(el.children).map(c => (c.textContent || '').replace(/​/g, '').trim()).join('')
+          if (!childText) blockHits.push(el)
+        }
+      }
+    }
+    for (let i = inlineHits.length - 1; i >= 0; i--) {
+      const el = inlineHits[i]
+      const parent = el.parentNode
+      if (!parent) continue
+      while (el.firstChild) parent.insertBefore(el.firstChild, el)
+      parent.removeChild(el)
+    }
+    for (let i = blockHits.length - 1; i >= 0; i--) {
+      const el = blockHits[i]
+      const parent = el.parentNode
+      if (!parent) continue
+      const next = el.nextSibling
+      if (!next || (next.nodeType === Node.ELEMENT_NODE && !(next as HTMLElement).textContent?.replace(/​/g, '').trim())) {
+        const freshP = document.createElement('p')
+        freshP.innerHTML = '<br>'
+        el.parentNode?.insertBefore(freshP, el.nextSibling)
+      }
+      parent.removeChild(el)
+    }
+  }
   const onInput = () => {
     autoFormat()
+    cleanupEmptyWrappers()
+    updateHint()
     scheduleSave()
   }
 
   // ─── List / blockquote / code-block continuation on Enter ───────
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // ─── Backspace/Delete: make inline wrappers deletable like chars ──
+    // When the cursor sits right outside a <mark>/<strong>/etc. boundary,
+    // move it inside so Backspace/Delete can reach the text (and
+    // eventually empty the wrapper, triggering cleanupEmptyWrappers).
+    // Without this the ZWSP cursor anchor and element boundaries act as
+    // invisible "walls" that keystrokes can't cross.
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      const s = window.getSelection()
+      if (s && s.rangeCount === 1 && s.isCollapsed) {
+        const rng = s.getRangeAt(0)
+        const node = rng.startContainer
+        const offset = rng.startOffset
+        const isBackspace = e.key === 'Backspace'
+
+        // Skip ZWSP — it's a transparent cursor anchor, not real text.
+        if (node.nodeType === Node.TEXT_NODE && node.nodeValue?.charAt(isBackspace ? offset - 1 : offset) === '\u200B') {
+          // Let browser delete the ZWSP, then clean up on input.
+        } else {
+          // Cursor right after a wrapper: Backspace → step inside so the
+          // browser can reach the text and delete the last character.
+          // Don't preventDefault — let the Backspace perform the deletion.
+          if (isBackspace && offset === 0 && node.nodeType === Node.TEXT_NODE && node.previousSibling) {
+            const prev = node.previousSibling
+            if (prev.nodeType === Node.ELEMENT_NODE && INLINE_TAGS.has((prev as HTMLElement).tagName)) {
+              const last = prev.lastChild
+              if (last && last.nodeType === Node.TEXT_NODE) {
+                const len = (last.nodeValue || '').replace(/\u200B/g, '').length
+                if (len > 0) {
+                  const nr = document.createRange()
+                  nr.setStart(last, len); nr.collapse(true)
+                  s.removeAllRanges(); s.addRange(nr)
+                  // No preventDefault — browser deletes last char inside wrapper.
+                  return
+                }
+              }
+              // Empty or no text wrapper — remove it.
+              e.preventDefault()
+              prev.remove()
+              scheduleSave()
+              return
+            }
+          }
+          // Cursor right before a wrapper: Delete → step inside.
+          if (!isBackspace && node.nodeType === Node.TEXT_NODE && node.nextSibling) {
+            const next = node.nextSibling
+            const textLen = (node.nodeValue || '').replace(/\u200B/g, '').length
+            if (offset >= textLen && next.nodeType === Node.ELEMENT_NODE && INLINE_TAGS.has((next as HTMLElement).tagName)) {
+              const first = next.firstChild
+              if (first && first.nodeType === Node.TEXT_NODE) {
+                const fLen = (first.nodeValue || '').replace(/\u200B/g, '').length
+                if (fLen > 0) {
+                  const nr = document.createRange()
+                  nr.setStart(first, 0); nr.collapse(true)
+                  s.removeAllRanges(); s.addRange(nr)
+                  // No preventDefault — browser deletes first char inside wrapper.
+                  return
+                }
+              }
+              if (!first) {
+                e.preventDefault()
+                next.remove()
+                scheduleSave()
+                return
+              }
+            }
+          }
+
+          // ── Cursor in parent element adjacent to a wrapper ──────────
+          // After the ZWSP cursor-anchor is deleted by the first
+          // Backspace/Delete, the caret often lands on the parent element
+          // (e.g. <p>) at an offset that sits right next to the wrapper.
+          // The text-node checks above miss this case — handle it here so
+          // inline tags feel as deletable as plain text.
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const el = node as HTMLElement
+            if (isBackspace && offset > 0) {
+              const child = el.childNodes[offset - 1]
+              if (child && child.nodeType === Node.ELEMENT_NODE && INLINE_TAGS.has((child as HTMLElement).tagName)) {
+                const last = (child as HTMLElement).lastChild
+                if (last && last.nodeType === Node.TEXT_NODE) {
+                  const len = (last.nodeValue || '').replace(/​/g, '').length
+                  if (len > 0) {
+                    const nr = document.createRange()
+                    nr.setStart(last, len); nr.collapse(true)
+                    s.removeAllRanges(); s.addRange(nr)
+                    return
+                  }
+                }
+                e.preventDefault(); child.remove(); scheduleSave(); return
+              }
+            }
+            if (!isBackspace && offset < el.childNodes.length) {
+              const child = el.childNodes[offset]
+              if (child && child.nodeType === Node.ELEMENT_NODE && INLINE_TAGS.has((child as HTMLElement).tagName)) {
+                const first = (child as HTMLElement).firstChild
+                if (first && first.nodeType === Node.TEXT_NODE) {
+                  const fLen = (first.nodeValue || '').replace(/​/g, '').length
+                  if (fLen > 0) {
+                    const nr = document.createRange()
+                    nr.setStart(first, 0); nr.collapse(true)
+                    s.removeAllRanges(); s.addRange(nr)
+                    return
+                  }
+                }
+                if (!first) { e.preventDefault(); child.remove(); scheduleSave(); return }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ─── ArrowRight/Left: step out of inline wrappers ────────────────
+    // When the caret is at the very end (or start) of an inline-format
+    // wrapper like <strong>, <mark>, <code>, etc., the browser keeps it
+    // trapped inside — there's no visible text to arrow past.  Manually
+    // collapse the selection after (or before) the wrapper so the user
+    // can keep navigating with the keyboard.
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.shiftKey) {
+      const s = window.getSelection()
+      if (s && s.rangeCount === 1 && s.isCollapsed) {
+        const rng = s.getRangeAt(0)
+        const node = rng.startContainer
+        const off = rng.startOffset
+        const isRight = e.key === 'ArrowRight'
+        if (node.nodeType === Node.TEXT_NODE) {
+          const txt = (node.nodeValue || '').replace(/​/g, '')
+          const atEnd = isRight && off >= txt.length && !node.nextSibling
+          const atStart = !isRight && off === 0 && !node.previousSibling
+          if (atEnd || atStart) {
+            const parent = node.parentNode
+            if (parent && parent.nodeType === Node.ELEMENT_NODE && INLINE_TAGS.has((parent as HTMLElement).tagName)) {
+              let wrapper: Node = parent
+              while (wrapper.parentNode && wrapper.parentNode !== rootRef.current) {
+                const gp: Node = wrapper.parentNode
+                if (gp.nodeType === Node.ELEMENT_NODE && INLINE_TAGS.has((gp as HTMLElement).tagName)) {
+                  wrapper = gp
+                } else break
+              }
+              e.preventDefault()
+              const nr = document.createRange()
+              if (isRight) {
+                nr.setStartAfter(wrapper)
+              } else {
+                nr.setStartBefore(wrapper)
+              }
+              nr.collapse(true)
+              s.removeAllRanges(); s.addRange(nr)
+              return
+            }
+          }
+        }
+      }
+    }
+
+    // ─── ArrowDown: escape from code block ───────────────────────────
+    if (e.key === 'ArrowDown' && !e.shiftKey) {
+      const s = window.getSelection()
+      if (s && s.rangeCount === 1 && s.isCollapsed) {
+        let n: Node | null = s.anchorNode
+        let preEl: HTMLPreElement | null = null
+        while (n && n !== rootRef.current) {
+          if (n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName === 'PRE') {
+            preEl = n as HTMLPreElement; break
+          }
+          n = n.parentNode
+        }
+        if (preEl) {
+          // Check if cursor is at or near the end of the code block.
+          const code = preEl.querySelector('code')
+          const lastLine = code?.lastChild
+          const rng = s.getRangeAt(0)
+          const endOfBlock = !lastLine ||
+            (rng.endContainer === lastLine && rng.endOffset >= (lastLine.textContent?.replace(/\n$/, '').length ?? 0))
+          if (endOfBlock) {
+            e.preventDefault()
+            let nextP = preEl.nextSibling as HTMLElement | null
+            if (!nextP || nextP.tagName !== 'P') {
+              nextP = document.createElement('p')
+              nextP.innerHTML = '<br>'
+              preEl.parentNode?.insertBefore(nextP, preEl.nextSibling)
+            }
+            const r = document.createRange()
+            r.setStart(nextP, 0); r.collapse(true)
+            s.removeAllRanges(); s.addRange(r)
+            scheduleSave()
+            return
+          }
+        }
+      }
+    }
+
     if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey) return
     const sel = window.getSelection()
     if (!sel || sel.rangeCount === 0) return
@@ -571,13 +648,8 @@ export function WysiwygEditor() {
           code.textContent = '\u200B'
           pre.appendChild(code)
           block.replaceWith(pre)
-          // Ensure a paragraph exists after the <pre> so the user can
-          // click outside the code block to place the cursor.
-          if (!pre.nextSibling) {
-            const trailing = document.createElement('p')
-            trailing.innerHTML = '<br>'
-            pre.parentNode?.appendChild(trailing)
-          }
+          // No trailing <p> — ArrowDown at end of <pre> (handled below)
+          // creates one on demand when the user wants to exit.
           // Place caret at the start of <code> (before the ZWSP).
           const r = document.createRange()
           r.setStart(code.firstChild!, 0); r.collapse(true)

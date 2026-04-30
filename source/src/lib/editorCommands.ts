@@ -70,12 +70,14 @@ function setLinePrefix(view: EditorView, prefix: string) {
   view.focus()
 }
 
-// Insert a block of text at cursor position (on a new line)
+// Insert a block of text at cursor position (on a new line).
+// Only add ONE newline when the current line has content — never insert a
+// blank line between the current text and the new block.
 function insertBlock(view: EditorView, block: string) {
   const { from } = view.state.selection.main
   const line = view.state.doc.lineAt(from)
   const insertAt = line.to
-  const newline = line.text.length > 0 ? '\n\n' : '\n'
+  const newline = line.text.length > 0 ? '\n' : ''
   view.dispatch({
     changes: { from: insertAt, insert: newline + block },
     selection: { anchor: insertAt + newline.length + block.length },
@@ -427,19 +429,13 @@ export function cmdPaste() {
 
 // --- Search commands ---
 
-export function cmdFind() {
+function openCmSearch() {
   const view = _editorView
   if (!view) return
-  // Trigger CodeMirror's built-in search
   import('@codemirror/search').then(({ openSearchPanel }) => {
     openSearchPanel(view)
   })
 }
 
-export function cmdReplace() {
-  const view = _editorView
-  if (!view) return
-  import('@codemirror/search').then(({ openSearchPanel }) => {
-    openSearchPanel(view)
-  })
-}
+export const cmdFind = openCmSearch
+export const cmdReplace = openCmSearch

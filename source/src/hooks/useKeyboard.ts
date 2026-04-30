@@ -1,7 +1,4 @@
 import { useEffect } from 'react'
-import TurndownService from 'turndown'
-
-const _td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' })
 import { useAppStore } from '../stores/useAppStore'
 import {
   cmdHeading, cmdParagraph, cmdQuote, cmdCodeBlock, cmdMathBlock,
@@ -20,21 +17,17 @@ import {
 import { saveMarkdown, saveMarkdownAs, openMarkdown, openFolder, newFile } from '../lib/fileActions'
 
 export function useKeyboard() {
-  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
-  const editorMode = useAppStore((s) => s.editorMode)
-  const setEditorMode = useAppStore((s) => s.setEditorMode)
-  const toggleFocusMode = useAppStore((s) => s.toggleFocusMode)
-  const zoomIn = useAppStore((s) => s.zoomIn)
-  const zoomOut = useAppStore((s) => s.zoomOut)
-  const zoomReset = useAppStore((s) => s.zoomReset)
-  const setSettingsOpen = useAppStore((s) => s.setSettingsOpen)
-
+  // Read editorMode via getState() inside the handler to avoid
+  // re-registering the keydown listener when the mode changes.
+  // All other values (toggleSidebar, zoom*, etc.) are stable zustand
+  // references read from the store at call time.
   useEffect(() => {
+    const state = () => useAppStore.getState()
     const isWysiwygFocus = () => {
-      if (editorMode !== 'wysiwyg') return false
+      if (state().editorMode !== 'wysiwyg') return false
       return !!getCERoot()
     }
-    const hasSourceView = () => editorMode === 'source' && !!getEditorView()
+    const hasSourceView = () => state().editorMode === 'source' && !!getEditorView()
 
     const bold = () => (isWysiwygFocus() ? htmlBold() : hasSourceView() && cmdBold())
     const italic = () => (isWysiwygFocus() ? htmlItalic() : hasSourceView() && cmdItalic())
@@ -53,23 +46,24 @@ export function useKeyboard() {
 
       // ── Global UI shortcuts ──
       if (mod && e.key === '\\' && !e.shiftKey) {
-        e.preventDefault(); toggleSidebar(); return
+        e.preventDefault(); state().toggleSidebar(); return
       }
       if (mod && e.key === '/') {
         e.preventDefault()
-        setEditorMode(editorMode === 'source' ? 'wysiwyg' : 'source'); return
+        const curMode = state().editorMode
+        state().setEditorMode(curMode === 'source' ? 'wysiwyg' : 'source'); return
       }
       if (e.key === 'F11') {
-        e.preventDefault(); toggleFocusMode(); return
+        e.preventDefault(); state().toggleFocusMode(); return
       }
       if (mod && (e.key === '=' || e.key === '+')) {
-        e.preventDefault(); zoomIn(); return
+        e.preventDefault(); state().zoomIn(); return
       }
       if (mod && e.key === '-') {
-        e.preventDefault(); zoomOut(); return
+        e.preventDefault(); state().zoomOut(); return
       }
       if (mod && e.key === ',') {
-        e.preventDefault(); setSettingsOpen(true); return
+        e.preventDefault(); state().setSettingsOpen(true); return
       }
 
       // ── File shortcuts ──
@@ -108,11 +102,14 @@ export function useKeyboard() {
         const doc = useAppStore.getState().doc
         const sel = window.getSelection()
         if (sel && !sel.isCollapsed && isWysiwygFocus()) {
-          // Convert selected HTML to markdown
+          // Convert selected HTML to markdown (lazy-load turndown).
           const range = sel.getRangeAt(0)
           const div = document.createElement('div')
           div.appendChild(range.cloneContents())
-          navigator.clipboard.writeText(_td.turndown(div.innerHTML))
+          import('turndown').then(({ default: T }) => {
+            const td = new T({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' })
+            navigator.clipboard.writeText(td.turndown(div.innerHTML))
+          })
           return
         }
         // Source mode: copy full document markdown.  In WYSIWYG mode with
@@ -196,8 +193,5 @@ export function useKeyboard() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [
-    toggleSidebar, editorMode, setEditorMode, toggleFocusMode,
-    zoomIn, zoomOut, zoomReset, setSettingsOpen,
-  ])
+  }, [])
 }
